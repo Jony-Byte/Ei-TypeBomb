@@ -15,6 +15,12 @@ type Props = {
     onBackgroundMusicChange: (value: boolean) => void;
     onSoundEffectsChange: (value: boolean) => void;
     getLearningDiagnostic?: () => string | null;
+    studySettings?: {
+        enabled: boolean; sequential: boolean; fullTest: boolean;
+        onEnabledChange: (value: boolean) => void;
+        onSequentialChange: (value: boolean) => void;
+        onFullTestChange: (value: boolean) => void;
+    };
     placement?: "inline" | "top-left";
 };
 
@@ -29,6 +35,7 @@ export default function GameSettings({
     onSoundEffectsChange,
     placement = "inline",
     getLearningDiagnostic,
+    studySettings,
 }: Readonly<Props>) {
     const [diagnosticStatus, setDiagnosticStatus] = useState<boolean | null>(
         null,
@@ -90,6 +97,26 @@ export default function GameSettings({
                             onChange={onReadAnswerChange}
                         />
                     </div>
+                )}
+                {process.env.NEXT_PUBLIC_BETA_ENVIRONMENT === "true" && studySettings && (
+                    <>
+                        <div className="flex w-full items-center justify-between pl-3">
+                            <div data-cursor="text">実験モード</div>
+                            <Toggle checked={studySettings.enabled} onChange={studySettings.onEnabledChange} />
+                        </div>
+                        {studySettings.enabled && (
+                            <>
+                                <div className="flex w-full items-center justify-between pl-3">
+                                    <div data-cursor="text">順番出題</div>
+                                    <Toggle checked={studySettings.sequential} onChange={studySettings.onSequentialChange} />
+                                </div>
+                                <div className="flex w-full items-center justify-between pl-3">
+                                    <div data-cursor="text">全単語テスト</div>
+                                    <Toggle checked={studySettings.fullTest} onChange={studySettings.onFullTestChange} />
+                                </div>
+                            </>
+                        )}
+                    </>
                 )}
                 {process.env.NEXT_PUBLIC_BETA_ENVIRONMENT === "true" &&
                     getLearningDiagnostic && (

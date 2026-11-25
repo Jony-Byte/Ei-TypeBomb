@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/lib/navigation-progress";
 import type { Room } from "@/type";
@@ -10,11 +10,13 @@ import { createNewRoom } from "@/lib/room/create";
 import { getSignInUrl } from "@/lib/auth/sign-in-url";
 import posthog from "posthog-js";
 import Shell from "@/components/layout/Shell";
+import { isPageMorphDestination } from "@/components/layout/page-morph";
 import Input from "@/components/ui/Input";
 import { View } from "@/type";
 import { getEditableRoomIds, selectRoomsForView } from "@/lib/room/list-view";
 import { useRoomListViewer } from "@/components/rooms/RoomListViewerProvider";
 import { getRoomListNavigationItems } from "@/lib/room/list-navigation";
+import { centerRoomListCard, finishRoomListReturn, getRoomListReturn, rememberRoomListSelection } from "@/lib/room/list-return";
 
 const EMPTY_SAVED_ROOM_IDS: string[] = [];
 
@@ -46,7 +48,10 @@ export default function RoomList({
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState("");
     const view = initialView;
-    const [keyword, setKeyword] = useState("");
+    const [returnSelection] = useState(() => getRoomListReturn(view));
+    const restored = useRef(false);
+    const listRef = useRef<HTMLDivElement>(null);
+    const [keyword, setKeyword] = useState(() => returnSelection?.keyword ?? "");
     // Keep typing responsive even when many rooms match the search.
     const deferredKeyword = useDeferredValue(keyword);
     const { snapshot, ensureLoaded, reconcile, toggleSaved } =
@@ -135,6 +140,43 @@ export default function RoomList({
         });
     }, [roomsInView, deferredKeyword]);
 
+    useLayoutEffect(() => {
+        if (!returnSelection || restored.current || viewerLoading || deferredKeyword !== keyword) return;
+        const card = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-room-list-card]") ?? [])
+            .find(element => element.dataset.roomListCard === returnSelection.roomId);
+        const restore = () => {
+            if (card?.isConnected) centerRoomListCard(card);
+            else window.scrollTo({ top: returnSelection.scrollTop, behavior: "instant" });
+        };
+        restore();
+        const restoredTop = window.scrollY;
+        // History may apply its own scroll after the commit. Never measure a
+        // card again once the parent Navigation has transformed it for Morph,
+        // or change the scroll position after a native snapshot has been taken.
+        const frame = requestAnimationFrame(() => {
+            if (!listRef.current?.isConnected) return;
+            if (!(card && isPageMorphDestination(card)) && !document.documentElement.dataset.etbNavigation) {
+                if (window.scrollY !== restoredTop) {
+                    window.scrollTo({ top: restoredTop, behavior: "instant" });
+                }
+            }
+            restored.current = true;
+            finishRoomListReturn(returnSelection);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [returnSelection, viewerLoading, filteredRooms, deferredKeyword, keyword]);
+
+    const onRoomNavigate = (room: Room) => {
+        rememberRoomListSelection({
+            view,
+            path: window.location.pathname,
+            roomId: room.id,
+            roomLink: room.link ?? room.id,
+            keyword,
+            scrollTop: window.scrollY,
+        });
+    };
+
     const toggleSavedRoomState = async (roomId: string) => {
         if (!currentUser) return;
 
@@ -211,10 +253,13 @@ export default function RoomList({
                 </p>
             )}
 
+            <div ref={listRef} className="w-full">
             {filteredRooms.length > 0 ? (
                 <RoomGrid
                     key={view + ":" + deferredKeyword}
                     rooms={filteredRooms}
+                    restoreRoomId={returnSelection?.roomId}
+                    onRoomNavigate={onRoomNavigate}
                     savedIds={savedRoomIds}
                     editableRoomIds={editableRoomIds}
                     onToggleSaved={
@@ -224,6 +269,7 @@ export default function RoomList({
             ) : (
                 <div>ルームが見つかりません。</div>
             )}
+            </div>
         </Shell>
     );
 }

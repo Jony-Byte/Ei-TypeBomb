@@ -20,12 +20,14 @@ export default function RoomCard({
     isOwner,
     onToggleSaved,
     eagerPrefetch = false,
+    onRoomNavigate,
 }: {
     room: Room;
     isSaved?: boolean;
     isOwner: boolean;
     onToggleSaved?: () => void;
     eagerPrefetch?: boolean;
+    onRoomNavigate?: () => void;
 }) {
     const router = useRouter();
     const navigate = useNavigation();
@@ -93,7 +95,16 @@ export default function RoomCard({
         <article
             ref={articleRef}
             data-navigation-morph-target={room.id}
-            className="flex h-full w-full flex-col rounded-lg bg-(--color-background-secondary) shadow-[8px_8px_0px_0px_var(--color-border)]"
+            data-room-list-card={room.id}
+            data-cursor="button"
+            data-cursor-shape="1"
+            className="room-card relative flex h-full w-full flex-col rounded-lg bg-(--color-background-secondary) shadow-[8px_8px_0px_0px_var(--color-border)] transition-transform duration-(--duration-etb) ease-etb"
+            onClickCapture={(event) => {
+                // Remember only normal navigation, not independent copy/save actions.
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !(event.target instanceof Element)) return;
+                const href = event.target.closest("a")?.getAttribute("href");
+                if (href === `/${roomLink}` || href === `/${roomLink}/edit`) onRoomNavigate?.();
+            }}
         >
             <div
                 className="rounded-lg h-full"
@@ -101,7 +112,7 @@ export default function RoomCard({
                 data-cursor-shape="1"
             >
                 <Link
-                    className="flex flex-col items-start h-full gap-4 transition-all duration-(--duration-etb) ease-etb active:scale-95 cursor-pointer"
+                    className="room-card-link flex flex-col items-start h-full gap-4 cursor-pointer after:absolute after:inset-0 after:rounded-lg after:content-['']"
                     onClick={() => {
                         posthog.capture("play_clicked", { room_id: room.id });
                     }}
@@ -172,13 +183,14 @@ export default function RoomCard({
                 </Link>
             </div>
 
-            <div className="mt-auto flex flex-wrap items-center justify-end">
+            <div className="relative z-10 mt-auto flex flex-wrap items-center justify-end pointer-events-none [&>*]:pointer-events-auto">
                 <Button
                     href={`/${roomLink}`}
                     navigation="push"
                     navigationTransition="morph"
                     navigationMorphSource={articleRef}
                     prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
+                    aria-label="ルームを開く"
                     iconName="play"
                     variant="text"
                     padding="middle"
@@ -189,6 +201,7 @@ export default function RoomCard({
                         navigation="push"
                         navigationScope="root"
                         prefetch={false}
+                        aria-label="ルームを編集"
                         iconName="pen"
                         variant="text"
                         padding="middle"
@@ -196,6 +209,7 @@ export default function RoomCard({
                 )}
                 <Button
                     onClick={copyRoomLink}
+                    aria-label="ルームのリンクをコピー"
                     iconName={copied ? "check" : "link"}
                     variant="text"
                     padding="middle"
@@ -203,6 +217,7 @@ export default function RoomCard({
                 {onToggleSaved && (
                     <Button
                         onClick={onToggleSaved}
+                        aria-label={isSaved ? "保存を解除" : "ルームを保存"}
                         iconName={isSaved ? "bookmarkOff" : "bookmark"}
                         variant="text"
                         padding="middle"

@@ -2,6 +2,12 @@ import { createMorphClock, advanceMorphRect, intersectMorphRect, visibleMorphTra
 import { getSlideMotion, prefersReducedMotion } from "./slide-motion";
 import { trackMorphCursorElement } from "./slide-cursor";
 
+const activeDestinations = new WeakSet<HTMLElement>();
+
+export function isPageMorphDestination(element: HTMLElement) {
+    return activeDestinations.has(element);
+}
+
 export type PageMorph = {
     key?: string;
     source: HTMLElement;
@@ -130,7 +136,9 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
 
         const properties = ["transform", "transform-origin", "transition", "opacity", "will-change", "clip-path"] as const;
         const previous = properties.map(name => [name, destination.style.getPropertyValue(name), destination.style.getPropertyPriority(name)] as const);
+        activeDestinations.add(destination);
         restore = () => {
+            activeDestinations.delete(destination);
             for (const [name, value, priority] of previous) {
                 if (value) destination.style.setProperty(name, value, priority);
                 else destination.style.removeProperty(name);

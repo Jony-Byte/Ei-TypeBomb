@@ -13,6 +13,7 @@ import "./navigation.css";
 import { slideFrames, getSlideMotion, prefersReducedMotion } from "./slide-motion";
 import { animateSlideEntrance, beginNativeSlideCursor, endNativeSlideCursor } from "./slide-cursor";
 import { capturePageMorph, type PageMorph } from "./page-morph";
+import { centerRoomListCard, noteRoomListPath } from "@/lib/room/list-return";
 
 export type NavigationDirection = "push" | "pop";
 export type NavigationTransition = "slide" | "morph";
@@ -62,6 +63,8 @@ function releaseDocumentTransition(request: Request) {
     delete root.dataset.etbNavigationKeepHeader;
     root.style.removeProperty("--etb-navigation-old-width");
     root.style.removeProperty("--etb-navigation-new-width");
+    root.style.removeProperty("--etb-navigation-old-top");
+    root.style.removeProperty("--etb-navigation-new-top");
     endNativeSlideCursor();
 }
 
@@ -90,8 +93,11 @@ export default function Navigation({ children, root = false }: { children: React
     const active = useRef<Request | null>(null);
     const animation = useRef<Animation | null>(null);
     const editorEntry = useRef<{ editor: string; from: string } | null>(null);
+    // Scroll policy must outlive the optional 500ms view transition.
+    const editorScrollTarget = useRef<string | null>(null);
 
     function cancel() {
+        editorScrollTarget.current = null;
         if (pending.current) stop(pending.current, true);
         pending.current = null;
         const request = active.current;
@@ -129,7 +135,14 @@ export default function Navigation({ children, root = false }: { children: React
     }, []);
 
     useLayoutEffect(() => {
-        if (root && pathname && !isEditorPath(pathname)) editorEntry.current = null;
+        if (root && pathname) {
+            noteRoomListPath(pathname);
+            if (editorScrollTarget.current === normalize(pathname)) {
+                window.scrollTo({ top: 0, behavior: "instant" });
+            }
+            editorScrollTarget.current = null;
+            if (!isEditorPath(pathname)) editorEntry.current = null;
+        }
         const request = pending.current;
         if (!request || !pathname) return;
         pending.current = null;
@@ -155,7 +168,7 @@ export default function Navigation({ children, root = false }: { children: React
             }
             if (request.direction === "pop") {
                 // Restore visibility before capturing the destination, including cards below the fold.
-                destination.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+                centerRoomListCard(destination);
             }
             request.morph.play(destination, () => {
                 if (active.current !== request) return;
@@ -163,6 +176,9 @@ export default function Navigation({ children, root = false }: { children: React
                 releaseDocumentTransition(request);
             });
             return;
+        }
+        if (matches && request.transition && request.keepHeader && viewport.current) {
+            document.documentElement.style.setProperty("--etb-navigation-new-top", `${viewport.current.getBoundingClientRect().top}px`);
         }
         if (matches && request.transition && width > 0) {
             document.documentElement.style.setProperty("--etb-navigation-new-width", `${width}px`);
@@ -239,7 +255,12 @@ export default function Navigation({ children, root = false }: { children: React
             }
             node.style.viewTransitionName = "etb-navigation-content";
             root.dataset.etbNavigation = direction;
-            if (request.keepHeader) root.dataset.etbNavigationKeepHeader = "";
+            if (request.keepHeader) {
+                root.dataset.etbNavigationKeepHeader = "";
+                const top = `${node.getBoundingClientRect().top}px`;
+                root.style.setProperty("--etb-navigation-old-top", top);
+                root.style.setProperty("--etb-navigation-new-top", top);
+            }
             active.current = request;
             try {
                 const transition = document.startViewTransition(async () => {
@@ -253,7 +274,11 @@ export default function Navigation({ children, root = false }: { children: React
                         }, 500);
                     });
                     if (request.historyBack) router.back();
-                    else router.push(href);
+                    else if (request.keepHeader && isEditorPath(target)) {
+                        // Set only when disabling Next scrolling, after old capture.
+                        editorScrollTarget.current = target;
+                        router.push(href, { scroll: false });
+                    } else router.push(href);
                     await committed;
                 });
                 request.transition = transition;
@@ -269,6 +294,7 @@ export default function Navigation({ children, root = false }: { children: React
                 void transition.finished.then(cleanup, cleanup);
                 return;
             } catch {
+                editorScrollTarget.current = null;
                 active.current = null;
                 clearMorph(request);
                 request.morph = undefined;

@@ -690,6 +690,7 @@ export default function EditorClient({
 
     return (
         <Shell
+            roomEditor
             className="flex flex-col px-4 gap-4"
             size="large"
         >

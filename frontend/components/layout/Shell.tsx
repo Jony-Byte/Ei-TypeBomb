@@ -19,6 +19,7 @@ type ShellProps = {
     onBackClicked?: () => void;
     showHeader?: boolean;
     morphTarget?: boolean | string;
+    roomEditor?: boolean;
 };
 
 export default function Shell({
@@ -34,6 +35,7 @@ export default function Shell({
     onBackClicked,
     showHeader = true,
     morphTarget = false,
+    roomEditor = false,
 }: ShellProps) {
     const router = useRouter();
     const morphRef = useRef<HTMLDivElement>(null);
@@ -47,9 +49,10 @@ export default function Shell({
     return (
         <>
             {showHeader && <Header />}
-            <div className="flex flex-col items-center w-full">
+            <div className="flex flex-col items-center w-full" data-room-editor={roomEditor ? "" : undefined}>
                 <div
                     ref={morphRef}
+                    data-room-detail={typeof morphTarget === "string" ? "" : undefined}
                     data-navigation-morph-target={typeof morphTarget === "string" ? morphTarget : morphTarget ? "" : undefined}
                     className={morphTarget ? `flex w-full flex-col items-center ${sizeClass}` : "contents"}
                 >

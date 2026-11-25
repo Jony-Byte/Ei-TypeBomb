@@ -2,57 +2,19 @@ import { createMorphClock, advanceMorphRect, intersectMorphRect, visibleMorphTra
 import { getSlideMotion, prefersReducedMotion } from "./slide-motion";
 import { trackMorphCursorElement } from "./slide-cursor";
 
-const activeDestinations = new WeakSet<HTMLElement>();
-
-export function isPageMorphDestination(element: HTMLElement) {
-    return activeDestinations.has(element);
-}
+import { createPageOverlay, inertCopy, place, rectOf, screenRect } from "./page-snapshot";
 
 export type PageMorph = {
     key?: string;
-    source: HTMLElement;
     play: (destination: HTMLElement, onFinish: () => void) => void;
     dispose: () => void;
 };
-
-function rectOf(element: HTMLElement): MorphRect {
-    const { left, top, width, height } = element.getBoundingClientRect();
-    return { x: left, y: top, width, height };
-}
-
-// Use the browser's visible content area, not the scrollable document height.
-function screenRect(): MorphRect {
-    const visual = window.visualViewport;
-    return visual
-        ? { x: visual.offsetLeft, y: visual.offsetTop, width: visual.width, height: visual.height }
-        : { x: 0, y: 0, width: document.documentElement.clientWidth, height: document.documentElement.clientHeight };
-}
 
 function clipToVisible(element: HTMLElement, full: MorphRect, visible: MorphRect) {
     const insets = morphClipInsets(full, visible);
     element.style.clipPath = insets.some(value => value > 0)
         ? "inset(" + insets.map(value => value + "px").join(" ") + ")"
         : "none";
-}
-
-function place(element: HTMLElement, rect: MorphRect) {
-    Object.assign(element.style, {
-        position: "absolute", left: rect.x + "px", top: rect.y + "px",
-        width: rect.width + "px", height: rect.height + "px",
-        margin: "0", transformOrigin: "top left", transform: "none", transition: "none",
-    });
-}
-
-function inertCopy(element: HTMLElement) {
-    const copy = element.cloneNode(true) as HTMLElement;
-    copy.inert = true;
-    copy.setAttribute("aria-hidden", "true");
-    for (const node of [copy, ...Array.from(copy.querySelectorAll<HTMLElement>("[id], [data-cursor], [data-navigation-morph-target]"))]) {
-        node.removeAttribute("id");
-        node.removeAttribute("data-cursor");
-        node.removeAttribute("data-navigation-morph-target");
-    }
-    return copy;
 }
 
 // Keep a non-interactive outgoing copy only during the visual handoff.
@@ -71,7 +33,7 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
         indices.unshift(Array.prototype.indexOf.call(parent.children, node));
         node = parent;
     }
-    const oldPage = inertCopy(viewport);
+    const { copy: oldPage, restoreScroll: restorePageScroll } = inertCopy(viewport);
     let oldTarget: Element = oldPage;
     for (const index of indices) {
         const child = oldTarget.children[index];
@@ -79,21 +41,15 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
         oldTarget = child;
     }
     (oldTarget as HTMLElement).style.visibility = "hidden";
-    const oldSource = inertCopy(source);
-    const overlay = document.createElement("div");
-    overlay.inert = true;
-    overlay.setAttribute("aria-hidden", "true");
-    overlay.dataset.navigationMorphOverlay = "";
-    Object.assign(overlay.style, {
-        position: "fixed", inset: "0", overflow: "hidden",
-        pointerEvents: "none", zIndex: "80",
-    });
-    place(oldPage, pageRect);
+    const { copy: oldSource, restoreScroll: restoreSourceScroll } = inertCopy(source);
+    const overlay = createPageOverlay("morph");
+    const screen = screenRect();
+    place(oldPage, { ...pageRect, x: pageRect.x - screen.x, y: pageRect.y - screen.y });
     oldPage.style.backgroundColor = "var(--color-background)";
     // Preserve the original layout and crop before scaling; shrinking the
     // full Shell would otherwise bring offscreen words into view.
     const oldLayer = document.createElement("div");
-    place(oldLayer, origin);
+    place(oldLayer, { ...origin, x: origin.x - screen.x, y: origin.y - screen.y });
     place(oldSource, {
         ...fullOrigin,
         x: fullOrigin.x - origin.x,
@@ -136,9 +92,9 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
 
         const properties = ["transform", "transform-origin", "transition", "opacity", "will-change", "clip-path"] as const;
         const previous = properties.map(name => [name, destination.style.getPropertyValue(name), destination.style.getPropertyPriority(name)] as const);
-        activeDestinations.add(destination);
+        destination.dataset.navigationMorphing = "";
         restore = () => {
-            activeDestinations.delete(destination);
+            delete destination.dataset.navigationMorphing;
             for (const [name, value, priority] of previous) {
                 if (value) destination.style.setProperty(name, value, priority);
                 else destination.style.removeProperty(name);
@@ -177,6 +133,8 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
         };
 
         document.body.append(overlay);
+        restorePageScroll();
+        restoreSourceScroll();
         paint();
         untrack = trackMorphCursorElement(destination);
         const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -207,5 +165,5 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
         frameId = requestAnimationFrame(tick);
     };
 
-    return { key: source.dataset.navigationMorphTarget, source, play, dispose };
+    return { key: source.dataset.navigationMorphTarget, play, dispose };
 }

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { Room } from "../type/index";
 import { getEditableRoomIds, selectRoomsForView } from "../lib/room/list-view";
 import { getRoomListNavigationItems } from "../lib/room/list-navigation";
-import { centerRoomListCard, finishRoomListReturn, getRoomListBackPath, getRoomListReturn, noteRoomListPath, rememberRoomListSelection, roomListRenderCount } from "../lib/room/list-return";
+import { roomListRenderCount } from "../lib/room/list-return";
 
 const otherPublic: Room = {
     id: "public-other",
@@ -164,40 +164,11 @@ test("sidebar and page titles share identical guest and signed-in navigation", (
 });
 
 
-test("room list return survives the editor and preserves the source feed and filter", () => {
-    rememberRoomListSelection({ view: "mine", path: "/mine", roomId: "id", roomLink: "slug", keyword: "apple", scrollTop: 1200 });
-    assert.equal(getRoomListReturn("mine"), null);
-    noteRoomListPath("/slug/edit");
-    assert.equal(getRoomListBackPath("/slug"), "/mine");
-    noteRoomListPath("/slug");
-    assert.equal(getRoomListReturn("saved"), null);
-    noteRoomListPath("/mine");
-    const entry = getRoomListReturn("mine");
-    assert.equal(entry?.roomId, "id");
-    assert.equal(entry?.keyword, "apple");
-    assert.equal(entry?.scrollTop, 1200);
-    finishRoomListReturn(entry!);
-    assert.equal(getRoomListReturn("mine"), null);
-});
-
-test("unrelated routes discard a previous room return", () => {
-    rememberRoomListSelection({ view: "latest", path: "/latest", roomId: "id", roomLink: "slug", keyword: "", scrollTop: 0 });
-    noteRoomListPath("/slug");
-    noteRoomListPath("/saved");
-    assert.equal(getRoomListReturn("latest"), null);
-});
-
-test("room grid renders enough pages for an offscreen selected room", () => {
+test("room grid renders the selected page and one page of scroll runway", () => {
     const ids = Array.from({ length: 80 }, (_, i) => String(i));
-    assert.equal(roomListRenderCount(ids, "0", 24), 24);
-    assert.equal(roomListRenderCount(ids, "23", 24), 24);
-    assert.equal(roomListRenderCount(ids, "24", 24), 48);
-    assert.equal(roomListRenderCount(ids, "79", 24), 96);
+    assert.equal(roomListRenderCount(ids, "0", 24), 48);
+    assert.equal(roomListRenderCount(ids, "23", 24), 48);
+    assert.equal(roomListRenderCount(ids, "24", 24), 72);
+    assert.equal(roomListRenderCount(ids, "79", 24), 120);
     assert.equal(roomListRenderCount(ids, "missing", 24), 24);
-});
-
-test("room return requests immediate vertical centering and nearest horizontal position", () => {
-    let options: ScrollIntoViewOptions | undefined;
-    centerRoomListCard({ scrollIntoView(value: ScrollIntoViewOptions) { options = value; } } as HTMLElement);
-    assert.deepEqual(options, { block: "center", inline: "nearest", behavior: "instant" });
 });

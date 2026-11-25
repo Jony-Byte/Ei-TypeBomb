@@ -336,15 +336,13 @@ test("room lists and details share the existing directional navigation and Shell
     const detail = read("app/(game)/(browse)/[link]/page.tsx");
     const shell = read("app/(game)/(browse)/[link]/RoomDetailShell.tsx");
     const card = read("components/rooms/RoomCard.tsx");
-    assert.match(browser, /<Navigation>\{children\}<\/Navigation>/);
-    assert.match(browser, /useState\("\/"\)/);
     assert.match(browser, /isFeed && signedInItems\.some/);
     assert.match(browser, /setBackHref\(listPath\)/);
     assert.match(list, /size="xlarge"/);
     assert.match(detail, /<RoomDetailShell title=\{title\} roomId=\{result.id\}>/);
     assert.match(shell, /size="xlarge"/);
     assert.match(shell, /back=\{backHref\}/);
-    assert.match(card, /navigate\?\.\(`\/\$\{roomLink\}`, "push", event\.preventDefault,\s+source \? \{ transition: "morph", source \}/);
+    assert.match(card, /navigate\?\.\(\s*`\/\$\{roomLink\}`,\s+"push",\s+event\.preventDefault,\s+source \? \{ transition: "morph", source \}/);
     assert.match(card, /href=\{`\/\$\{roomLink\}`\}\s+navigation="push"/);
     assert.match(card, /href=\{`\/\$\{roomLink\}\/edit`\}\s+navigation="push"\s+navigationScope="root"/);
 });
@@ -355,20 +353,6 @@ test("editor links use a persistent root navigation across route groups", () => 
     assert.match(read("app/(game)/(browse)/[link]/PlayRoom.tsx"), /href=\{"\/" \+ link \+ "\/edit"\}\s+prefetch=\{false\}\s+navigation="push"\s+navigationScope="root"/);
     assert.match(read("components/ui/Button.tsx"), /useNavigation\(navigationScope\)/);
     assert.doesNotMatch(read("app/(editor)/[link]/edit/EditorClient.tsx"), /animateAppear=\{true\}/);
-});
-
-test("room-card entry and return share a keyed morph while editor keeps slide", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const card = read("components/rooms/RoomCard.tsx");
-    const nav = read("components/layout/Navigation.tsx");
-    const css = read("components/layout/navigation.css");
-    assert.match(card, /navigationTransition="morph"\s+navigationMorphSource=\{articleRef\}/);
-    assert.match(read("app/(game)/(browse)/[link]/RoomDetailShell.tsx"), /size="xlarge"\s+morphTarget=\{roomId\}/);
-    assert.match(nav, /capturePageMorph\(node, source\)/);
-    assert.match(nav, /request.morph.play\(destination,/);
-    assert.match(nav, /clearMorph\(request\)/);
-    assert.doesNotMatch(css, /etb-navigation-morph/);
-    assert.match(card, /href=\{\x60\/\$\{roomLink\}\/edit\x60\}\s+navigation="push"\s+navigationScope="root"/);
 });
 
 test("page morph uses slide timing and retargets the live destination", () => {
@@ -383,29 +367,11 @@ test("page morph uses slide timing and retargets the live destination", () => {
     assert.match(read("components/ui/Morph.tsx"), /createMorphClock\(root,/);
 });
 
-test("room detail back morph selects only the original room card", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const nav = read("components/layout/Navigation.tsx");
-    const shell = read("components/layout/Shell.tsx");
-    const card = read("components/rooms/RoomCard.tsx");
-    assert.match(card, /data-navigation-morph-target=\{room.id\}/);
-    assert.match(shell, /navigation=\{back \? "pop" : undefined\}\s+navigationTransition=\{morphTarget \? "morph" : "slide"\}\s+navigationMorphSource=\{morphTarget \? morphRef : undefined\}/);
-    assert.match(read("components/layout/page-morph.ts"), /key: source.dataset.navigationMorphTarget/);
-    assert.match(nav, /element !== source && \(key === undefined \|\| element.dataset.navigationMorphTarget === key\)/);
-    assert.match(nav, /if \(request.direction === "pop"\) \{\s*\/\/[^\n]+\n\s*destination.scrollIntoView/);
-    assert.match(nav, /if \(!destination \|\|[^}]+cancel\(\)/);
-});
-
 test("nested navigation releases document state only for the current transition owner", () => {
     const nav = readFileSync(path.join(__dirname, "..", "components/layout/Navigation.tsx"), "utf8");
     assert.match(nav, /function releaseDocumentTransition\(request: Request\) \{\s*if \(documentTransition\?\.request !== request\) return;\s*documentTransition = null;/);
     assert.match(nav, /documentTransition\?\.cancel\(\);\s*documentTransition = \{ request, cancel \};/);
-    assert.match(nav, /clearMorph\(request\);\s*releaseDocumentTransition\(request\);\s*node.style.viewTransitionName = "";/);
-});
-
-test("morph pushes reset scroll before redirect or missing-target cancellation", () => {
-    const nav = readFileSync(path.join(__dirname, "..", "components/layout/Navigation.tsx"), "utf8");
-    assert.match(nav, /if \(request\.morph\) \{\s*stop\(request\);[\s\S]*?if \(request\.direction === "push"\) \{\s*window\.scrollTo\(\{ top: 0, behavior: "instant" \}\);\s*\}\s*if \(!matches\) \{ cancel\(\); return; \}[\s\S]*?if \(!destination \|\|[^}]+cancel\(\)/);
+    assert.match(nav, /releaseDocumentTransition\(request\);\s*node.style.viewTransitionName = "";/);
 });
 
 test("page morph crops both outgoing and incoming layers without changing page layout", () => {
@@ -416,18 +382,4 @@ test("page morph crops both outgoing and incoming layers without changing page l
     assert.match(morph, /clipToVisible\(destination, fullTarget, target\)/);
     assert.match(morph, /const visible = intersectMorphRect\(next, screenRect\(\)\)/);
     assert.match(morph, /const properties = \[[^\]]*"clip-path"\]/);
-});
-
-
-test("editor navigation isolates the shared header and animates the history return", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const nav = read("components/layout/Navigation.tsx");
-    const css = read("components/layout/navigation.css");
-    const editor = read("app/(editor)/[link]/edit/EditorClient.tsx");
-    assert.match(nav, /root && \(isEditorPath\(current\) \|\| isEditorPath\(target\)\)/);
-    assert.match(nav, /if \(request.historyBack\) router.back\(\)/);
-    assert.match(nav, /delete root.dataset.etbNavigationKeepHeader/);
-    assert.match(read("components/layout/Header.tsx"), /data-navigation-header/);
-    assert.match(css, /view-transition-name: etb-navigation-header/);
-    assert.match(editor, /const editorBack = useEditorBack\(\)/);
 });

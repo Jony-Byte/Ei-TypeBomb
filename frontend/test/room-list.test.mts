@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { Room } from "../type/index";
 import { getEditableRoomIds, selectRoomsForView } from "../lib/room/list-view";
 import { getRoomListNavigationItems } from "../lib/room/list-navigation";
+import { roomListRenderCount } from "../lib/room/list-return";
 
 const otherPublic: Room = {
     id: "public-other",
@@ -160,4 +161,14 @@ test("sidebar and page titles share identical guest and signed-in navigation", (
     ]);
     assert.equal(getRoomListNavigationItems(false).some((item) => item.value === "mine"), false);
     assert.equal(getRoomListNavigationItems(true).find((item) => item.value === "mine")?.label, "自分のルーム");
+});
+
+
+test("room grid renders the selected page and one page of scroll runway", () => {
+    const ids = Array.from({ length: 80 }, (_, i) => String(i));
+    assert.equal(roomListRenderCount(ids, "0", 24), 48);
+    assert.equal(roomListRenderCount(ids, "23", 24), 48);
+    assert.equal(roomListRenderCount(ids, "24", 24), 72);
+    assert.equal(roomListRenderCount(ids, "79", 24), 120);
+    assert.equal(roomListRenderCount(ids, "missing", 24), 24);
 });

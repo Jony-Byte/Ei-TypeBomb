@@ -14,6 +14,7 @@ import { getSignInUrl } from "@/lib/auth/sign-in-url";
 import { signOut } from "@/lib/auth/sign-out";
 import { startNavigationProgress } from "@/lib/navigation-progress";
 import { getRoomListNavigationItems } from "@/lib/room/list-navigation";
+import { useRoomNavigation } from "@/components/layout/RoomNavigation";
 
 const feedSegments = new Set([null, "latest", "mine", "saved", "viewer-feed-internal"]);
 const getSidebarItems = (signedIn: boolean) =>
@@ -92,7 +93,8 @@ export default function RoomBrowser({ children }: { children: ReactNode }) {
     const segment = useSelectedLayoutSegment();
     const isFeed = feedSegments.has(segment);
     const pathname = usePathname();
-    const [backHref, setBackHref] = useState("/");
+    const roomNavigation = useRoomNavigation();
+    const [backHref, setBackHref] = useState(() => roomNavigation?.listBackPath(pathname) ?? "/");
     // Keep the last public-facing list URL across the shared browse layout.
     // Rewritten feeds use the browser pathname, never their internal route.
     const listPath = pathname?.replace(/\/+$/, "") || "/";
@@ -109,7 +111,7 @@ export default function RoomBrowser({ children }: { children: ReactNode }) {
             <div className="w-full [&:has([data-room-password-gate])_[data-sidebar-navigation]]:hidden">
                 <Sidebar items={signedIn ? signedInItems : publicItems}>
                     <RoomListBackContext.Provider value={backHref}>
-                        <Navigation>{children}</Navigation>
+                        <Navigation roomBrowse>{children}</Navigation>
                     </RoomListBackContext.Provider>
                 </Sidebar>
             </div>

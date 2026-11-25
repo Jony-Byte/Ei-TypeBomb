@@ -128,16 +128,50 @@ html[data-etb-navigation="pop"]::view-transition-new(etb-navigation-content) {
     }
 }
 
-/* The common header is captured independently only for editor navigation. */
-html[data-etb-navigation-keep-header] [data-navigation-header] {
-    view-transition-name: etb-navigation-header;
+/* Room transitions paint fixed, viewport-sized layers instead of animating
+ * a document-height view-transition group between two scroll offsets. */
+[data-room-navigation-overlay] {
+    overflow: clip;
+    pointer-events: none;
+    z-index: 80;
 }
-html[data-etb-navigation-keep-header]::view-transition-group(etb-navigation-header),
-html[data-etb-navigation-keep-header]::view-transition-new(etb-navigation-header) {
-    animation: none;
-    mix-blend-mode: normal;
-    z-index: 2;
+
+[data-room-navigation-overlay="slide"] {
+    background: var(--color-background);
 }
-html[data-etb-navigation-keep-header]::view-transition-old(etb-navigation-header) {
-    display: none;
+
+.room-navigation-slide-layer {
+    overflow: clip;
+}
+
+.room-navigation-slide-layer [data-navigation-header] {
+    visibility: hidden;
+}
+
+[data-room-slide-live] [data-navigation-header] {
+    visibility: visible;
+    position: relative;
+    z-index: 81;
+}
+
+html:has([data-room-list], [data-room-detail], [data-room-editor]) {
+    overflow-anchor: none;
+}
+
+/* Keep each card's controls and surface in the same stacking context so
+ * the whole card can be raised above its siblings during a return morph. */
+.room-card {
+    isolation: isolate;
+}
+.room-card:has(> [data-navigation-morphing]) {
+    z-index: 1;
+}
+
+/* The hit area stays in place while the visible card surface scales. */
+.room-card:has(.room-card-link:active) .room-card-surface {
+    transform: scale(0.95);
+}
+.room-card:has(.room-card-link:focus-visible) {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
 }

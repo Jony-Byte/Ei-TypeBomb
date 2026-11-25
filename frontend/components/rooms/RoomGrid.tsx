@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Room } from "@/type";
 import RoomCard from "@/components/rooms/RoomCard";
 import Button from "@/components/ui/Button";
+import { roomListRenderCount } from "@/lib/room/list-return";
 
 const PAGE_SIZE = 24;
 
@@ -12,13 +13,33 @@ export default function RoomGrid({
     savedIds,
     editableRoomIds,
     onToggleSaved,
+    restoreRoomId,
+    onRoomNavigate,
 }: {
     rooms: Room[];
     savedIds: string[];
     editableRoomIds: ReadonlySet<string>;
     onToggleSaved?: (roomId: string) => void;
+    restoreRoomId?: string;
+    onRoomNavigate?: (room: Room) => void;
 }) {
-    const [renderCount, setRenderCount] = useState(PAGE_SIZE);
+    const [loadedCount, setRenderCount] = useState(() =>
+        roomListRenderCount(
+            rooms.map((room) => room.id),
+            restoreRoomId,
+            PAGE_SIZE,
+        ),
+    );
+    const renderCount = Math.max(
+        loadedCount,
+        restoreRoomId
+            ? roomListRenderCount(
+                  rooms.map((room) => room.id),
+                  restoreRoomId,
+                  PAGE_SIZE,
+              )
+            : PAGE_SIZE,
+    );
     const sentinelRef = useRef<HTMLDivElement>(null);
     const hasMore = renderCount < rooms.length;
 
@@ -35,7 +56,10 @@ export default function RoomGrid({
             ([entry]) => {
                 if (entry.isIntersecting) {
                     setRenderCount((count) =>
-                        Math.min(count + PAGE_SIZE, rooms.length),
+                        Math.min(
+                            Math.max(count, renderCount) + PAGE_SIZE,
+                            rooms.length,
+                        ),
                     );
                 }
             },
@@ -55,6 +79,7 @@ export default function RoomGrid({
                         isSaved={savedIds.includes(room.id)}
                         isOwner={editableRoomIds.has(room.id)}
                         eagerPrefetch={index < 2}
+                        onRoomNavigate={() => onRoomNavigate?.(room)}
                         onToggleSaved={
                             onToggleSaved
                                 ? () => onToggleSaved(room.id)
@@ -69,7 +94,10 @@ export default function RoomGrid({
                         variant="text"
                         onClick={() =>
                             setRenderCount((count) =>
-                                Math.min(count + PAGE_SIZE, rooms.length),
+                                Math.min(
+                                    Math.max(count, renderCount) + PAGE_SIZE,
+                                    rooms.length,
+                                ),
                             )
                         }
                     >

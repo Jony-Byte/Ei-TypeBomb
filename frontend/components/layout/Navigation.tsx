@@ -93,8 +93,11 @@ export default function Navigation({ children, root = false }: { children: React
     const active = useRef<Request | null>(null);
     const animation = useRef<Animation | null>(null);
     const editorEntry = useRef<{ editor: string; from: string } | null>(null);
+    // Scroll policy must outlive the optional 500ms view transition.
+    const editorScrollTarget = useRef<string | null>(null);
 
     function cancel() {
+        editorScrollTarget.current = null;
         if (pending.current) stop(pending.current, true);
         pending.current = null;
         const request = active.current;
@@ -134,17 +137,16 @@ export default function Navigation({ children, root = false }: { children: React
     useLayoutEffect(() => {
         if (root && pathname) {
             noteRoomListPath(pathname);
+            if (editorScrollTarget.current === normalize(pathname)) {
+                window.scrollTo({ top: 0, behavior: "instant" });
+            }
+            editorScrollTarget.current = null;
             if (!isEditorPath(pathname)) editorEntry.current = null;
         }
         const request = pending.current;
         if (!request || !pathname) return;
         pending.current = null;
         const matches = normalize(pathname) === request.target;
-        // Keep the old scroll position until the native outgoing capture.
-        // The incoming editor starts at the top before its snapshot is taken.
-        if (matches && request.keepHeader && !request.historyBack && isEditorPath(pathname)) {
-            window.scrollTo({ top: 0, behavior: "instant" });
-        }
         const width = viewport.current ? navigationWidth(viewport.current) : 0;
         if (request.morph) {
             stop(request);
@@ -272,7 +274,11 @@ export default function Navigation({ children, root = false }: { children: React
                         }, 500);
                     });
                     if (request.historyBack) router.back();
-                    else router.push(href, request.keepHeader ? { scroll: false } : undefined);
+                    else if (request.keepHeader && isEditorPath(target)) {
+                        // Set only when disabling Next scrolling, after old capture.
+                        editorScrollTarget.current = target;
+                        router.push(href, { scroll: false });
+                    } else router.push(href);
                     await committed;
                 });
                 request.transition = transition;
@@ -288,6 +294,7 @@ export default function Navigation({ children, root = false }: { children: React
                 void transition.finished.then(cleanup, cleanup);
                 return;
             } catch {
+                editorScrollTarget.current = null;
                 active.current = null;
                 clearMorph(request);
                 request.morph = undefined;

@@ -10,6 +10,7 @@ import { createNewRoom } from "@/lib/room/create";
 import { getSignInUrl } from "@/lib/auth/sign-in-url";
 import posthog from "posthog-js";
 import Shell from "@/components/layout/Shell";
+import { isPageMorphDestination } from "@/components/layout/page-morph";
 import Input from "@/components/ui/Input";
 import { View } from "@/type";
 import { getEditableRoomIds, selectRoomsForView } from "@/lib/room/list-view";
@@ -148,10 +149,17 @@ export default function RoomList({
             else window.scrollTo({ top: returnSelection.scrollTop, behavior: "instant" });
         };
         restore();
-        // History navigation may restore its own position during the commit.
+        const restoredTop = window.scrollY;
+        // History may apply its own scroll after the commit. Never measure a
+        // card again once the parent Navigation has transformed it for Morph,
+        // or change the scroll position after a native snapshot has been taken.
         const frame = requestAnimationFrame(() => {
             if (!listRef.current?.isConnected) return;
-            restore();
+            if (!(card && isPageMorphDestination(card)) && !document.documentElement.dataset.etbNavigation) {
+                if (window.scrollY !== restoredTop) {
+                    window.scrollTo({ top: restoredTop, behavior: "instant" });
+                }
+            }
             restored.current = true;
             finishRoomListReturn(returnSelection);
         });

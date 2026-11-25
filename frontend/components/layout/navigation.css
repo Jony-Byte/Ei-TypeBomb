@@ -141,3 +141,30 @@ html[data-etb-navigation-keep-header]::view-transition-new(etb-navigation-header
 html[data-etb-navigation-keep-header]::view-transition-old(etb-navigation-header) {
     display: none;
 }
+
+/* Editor snapshots can have different document scroll offsets. Anchor the
+ * transition group to the viewport and position each snapshot independently.
+ * The existing horizontal keyframes and easing remain unchanged. */
+html[data-etb-navigation-keep-header]::view-transition-group(etb-navigation-content) {
+    animation: none;
+    transform: none;
+    overflow: clip;
+}
+
+html[data-etb-navigation-keep-header]::view-transition-old(etb-navigation-content) {
+    translate: 0 var(--etb-navigation-old-top, 0px);
+}
+
+html[data-etb-navigation-keep-header]::view-transition-new(etb-navigation-content) {
+    translate: 0 var(--etb-navigation-new-top, 0px);
+}
+
+/* The stretched link owns the card's hit area. Independent sibling buttons
+ * are stacked above it, so their active state never scales the article. */
+.room-card:has(.room-card-link:active) {
+    transform: scale(0.95);
+}
+.room-card:has(.room-card-link:focus-visible) {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}

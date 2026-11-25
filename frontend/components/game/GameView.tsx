@@ -50,6 +50,7 @@ type Props = {
     resultExtraActions?: ReactNode;
     preGameContent?: ReactNode;
     masteryProgress?: ReactNode;
+    studyQuestion?: ReactNode;
     onSuccess: () => void;
     onChangeInput: (input: string, failed?: boolean) => void;
     onPlayAgain: () => void;
@@ -108,6 +109,7 @@ export default function GameView({
     resultExtraActions,
     preGameContent,
     masteryProgress,
+    studyQuestion,
     onSuccess,
     onChangeInput,
     onPlayAgain,
@@ -225,7 +227,7 @@ export default function GameView({
                         {currentTurnUser.displayName + "の番です"}
                     </div>
                 ) : null}
-                <ItemView
+                {studyQuestion ?? <ItemView
                     key={`${currentItem.id}:${currentTurn}:${itemPresentationKey}`}
                     item={currentItem}
                     items={getRoomItems(room)}
@@ -273,7 +275,7 @@ export default function GameView({
                     onRecallProgress={onRecallProgress}
                     onRecallComplete={onRecallComplete}
                     isPaused={isPaused}
-                />
+                />}
             </div>
         );
 

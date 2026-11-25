@@ -1,4 +1,6 @@
 "use client";
+import { beginStudy, persistStudy, nextStudyQuestion, recordStudyAnswer, readStudy, type StudyRuntime } from "@/lib/playground/study";
+import StudyQuestion from "@/components/recall/StudyQuestion";
 import { createSpeechLanguageResolver } from "@/lib/speech-language";
 import { getMasteryGraph } from "@/lib/playground/mastery-graph";
 import { LEARNING_DIAGNOSTICS_ENABLED, captureDecision, diagnosticJSON, type CapturedDecision, type AnswerEvent } from "@/lib/playground/diagnostics";
@@ -225,6 +227,11 @@ export default function Client({
     const flushPendingMemory = useCallback(async () => {
         await memorySyncRef.current?.queue.flush();
     }, []);
+    const [studyEnabled, setStudyEnabled] = useState(false);
+    const [studySequential, setStudySequential] = useState(false);
+    const [studyFullTest, setStudyFullTest] = useState(false);
+    const [studyProbe, setStudyProbe] = useState(false);
+    const studyRef = useRef<StudyRuntime | null>(null);
     const decisionRef = useRef<CapturedDecision | null>(null);
     const answerDiagnosticRef = useRef<AnswerEvent | null>(null);
     const schedulerRef = useRef<SchedulerState | null>(null);
@@ -431,6 +438,15 @@ export default function Client({
             (schedulerRef.current = createScheduler(
                 items.map((item) => item.id),
             ));
+        const study = studyRef.current;
+        if (study) {
+            const next = nextStudyQuestion(study, items.map(item => item.id), Date.now());
+            setStudyProbe(next.kind === "probe" || next.kind === "test");
+            if (next.kind === "complete") return null;
+            if (next.kind !== "adaptive") {
+                return items.find(item => item.id === next.itemId) ?? null;
+            }
+        }
         const id = chooseNextUserItem(
             scheduler,
             memoryByItemRef.current,
@@ -444,7 +460,11 @@ export default function Client({
                 } catch { decisionRef.current = null; }
             } : undefined,
         )?.itemId;
-        if (!memoryReadFailedRef.current) {
+        if (study) {
+            study.store.scheduler = scheduler;
+            persistStudy(study);
+        }
+        if (!study && !memoryReadFailedRef.current) {
             saveSchedulerState(
                 "playground",
                 authenticatedUserIdRef.current ?? GUEST_MEMORY_USER_ID,
@@ -458,6 +478,11 @@ export default function Client({
     const resolveTurnWithItem = useCallback(() => {
         const item = chooseItemForTurn();
         if (!item) {
+            if (studyRef.current?.fullTest) {
+                setIsStarted(false);
+                setNotice({ visible: true, iconName: "info", title: "全単語テストが終了しました", description: "設定から出題診断をコピーしてください。" });
+                return null;
+            }
             setNextReviewAt(
                 schedulerRef.current
                     ? nextMemoryReviewAt(
@@ -478,6 +503,27 @@ export default function Client({
     const startGame = useCallback(() => {
         if (!memoryReady || items.length === 0) return;
 
+        if (LEARNING_DIAGNOSTICS_ENABLED && studyEnabled) {
+            try {
+                const study = beginStudy(room.id, studySequential ? "sequential" : "adaptive",
+                    studyFullTest, items.map(item => item.id), requestedAnswerMode, MEMORY_MODEL_VERSION);
+                studyRef.current = study;
+                memorySyncRef.current?.stop();
+                memorySyncRef.current = null;
+                authenticatedUserIdRef.current = null;
+                memoryReadFailedRef.current = true;
+                memoryByItemRef.current = study.store.memory;
+                setMemoryByItem(study.store.memory);
+                schedulerRef.current = study.store.scheduler ?? createScheduler(items.map(item => item.id));
+                userReviewCountRef.current = 0;
+                userTypingDelayRef.current = DEFAULT_TYPING_DELAY_MS;
+            } catch (error) {
+                setNotice({ visible: true, iconName: "info", title: "実験データを読み込めません", description: String(error) });
+                initialGameStartedRef.current = false;
+                setShowInstructions(true);
+                return;
+            }
+        }
         setIsStarted(true);
         setIsPaused(false);
         setNextReviewAt(null);
@@ -485,7 +531,7 @@ export default function Client({
         previousInputAtRef.current = null;
         previousInputLengthRef.current = 0;
         setTrackedItem(resolveTurnWithItem());
-    }, [items.length, memoryReady, resolveTurnWithItem, setTrackedItem]);
+    }, [items, memoryReady, resolveTurnWithItem, setTrackedItem, room.id, requestedAnswerMode, studyEnabled, studySequential, studyFullTest]);
 
     useEffect(() => {
         successAudioRef.current = new Audio("/Blip_select_8.wav");
@@ -583,9 +629,11 @@ export default function Client({
             const evaluation = evaluateRecall(evidence);
             const previousHoldUntil =
                 scheduler?.struggles[item.id]?.suspendedUntil ?? null;
-            if (scheduler) recordUserAnswer(scheduler, evaluation);
+            const study = studyRef.current;
+            if (scheduler && (!study || study.algorithm === "adaptive")) recordUserAnswer(scheduler, evaluation);
             const currentStruggle = scheduler?.struggles[item.id];
             if (
+                !study &&
                 currentStruggle?.suspendedUntil != null &&
                 currentStruggle.suspendedUntil !== previousHoldUntil
             ) {
@@ -647,6 +695,16 @@ export default function Client({
             if (scheduler && !memoryReadFailedRef.current)
                 saveSchedulerState("playground", userId, room.id, scheduler);
             userReviewCountRef.current += 1;
+            if (study) {
+                study.store.memory = nextMemoryByItem;
+                study.store.scheduler = scheduler;
+                recordStudyAnswer(study, item.id, evidence.firstAttemptCorrect === true && !evidence.answerWasFullyRevealed,
+                    evidence.elapsedMs, { success: evidence.success, firstAttemptCorrect: evidence.firstAttemptCorrect,
+                    hintCount: evidence.hintCount, incorrectInputCount: evidence.incorrectInputCount,
+                    exposureGapMs: evidence.elapsedSincePresentationMs, predictedRetrievabilityBefore,
+                    schedulerReason: selected?.reason, answerMode: "input" });
+                return;
+            }
 
             posthog.capture("playground_item_recalled", {
                 room_id: room.id,
@@ -758,9 +816,17 @@ export default function Client({
             memoryByItemRef.current = nextMemoryByItem;
             setMemoryByItem(nextMemoryByItem);
             setMasteryNow(Date.now());
+            if (studyRef.current) {
+                studyRef.current.store.memory = nextMemoryByItem;
+                studyRef.current.store.scheduler = schedulerRef.current;
+                if (mode === "selection") recordStudyAnswer(studyRef.current, item.id, success && !usedHint,
+                    responseMs, { success, usedHint, exposureGapMs, answerMode: requestedAnswerMode,
+                    predictedRetrievabilityBefore: predictedRetrievabilityAtPromptRef.current });
+                else persistStudy(studyRef.current);
+            }
             return updated;
         },
-        [room.id, items, choiceCount],
+        [room.id, items, choiceCount, requestedAnswerMode],
     );
 
     const handleRecallProgress = useCallback((progress: RecallProgress) => {
@@ -816,7 +882,7 @@ export default function Client({
             const item = currentItemRef.current;
             if (!item || isPaused || !correct) return;
             const scheduler = schedulerRef.current;
-            if (scheduler) {
+            if (scheduler && (!studyRef.current || studyRef.current.algorithm === "adaptive")) {
                 if (choiceCount < 2) scheduler.current = null;
                 else recordRecognitionAnswer(
                     scheduler, item.id, hadMistake, Date.now(), exposureGapAtStartRef.current,
@@ -888,7 +954,7 @@ export default function Client({
         previousInputLengthRef.current = 0;
         setTrackedItem(resolveTurnWithItem(), true);
 
-        posthog.capture(
+        if (!studyRef.current) posthog.capture(
             wasAnswerRevealed ? "word_reviewed" : "word_succeeded",
             { mode: "playground", room_id: room.id },
         );
@@ -901,6 +967,17 @@ export default function Client({
         room.id,
         setTrackedItem,
     ]);
+
+    const handleStudyAnswer = useCallback((correct: boolean, responseMs: number, submitted: string | null) => {
+        const study = studyRef.current;
+        const item = currentItemRef.current;
+        if (!study || !item || isPaused || (study.currentKind !== "probe" && study.currentKind !== "test")) return;
+        recordStudyAnswer(study, item.id, correct, responseMs, { submitted, answerMode: "free-recall" });
+        setCurrentInput("");
+        previousInputAtRef.current = null;
+        previousInputLengthRef.current = 0;
+        setTrackedItem(resolveTurnWithItem(), true);
+    }, [isPaused, resolveTurnWithItem, setTrackedItem]);
 
     useEffect(() => {
         if (
@@ -1048,6 +1125,9 @@ export default function Client({
                 currentTurn={0}
                 bombStatus={0}
                 currentItem={currentItem}
+                studyQuestion={studyProbe && currentItem ? (
+                    <StudyQuestion key={itemPresentationKey} item={currentItem} disabled={isPaused} onAnswer={handleStudyAnswer} />
+                ) : undefined}
                 itemPresentationKey={itemPresentationKey}
                 slideQuestion={slidePresentationKey === itemPresentationKey}
                 currentInput={currentInput}
@@ -1227,8 +1307,24 @@ export default function Client({
                     }}
                 />
                 <GameSettings
-                    getLearningDiagnostic={LEARNING_DIAGNOSTICS_ENABLED ? () =>
-                        diagnosticJSON(decisionRef.current, masteryGraph, items.map(item => item.id)) : undefined}
+                    studySettings={LEARNING_DIAGNOSTICS_ENABLED && !initialGameStartedRef.current ? {
+                        enabled: studyEnabled, sequential: studySequential, fullTest: studyFullTest,
+                        onEnabledChange: setStudyEnabled, onSequentialChange: setStudySequential, onFullTestChange: setStudyFullTest,
+                    } : undefined}
+                    getLearningDiagnostic={LEARNING_DIAGNOSTICS_ENABLED ? () => {
+                        const latest = diagnosticJSON(decisionRef.current, masteryGraph, items.map(item => item.id));
+                        const study = studyRef.current;
+                        const saved = (["adaptive", "sequential"] as const).flatMap(algorithm => {
+                            const store = study?.algorithm === algorithm ? study.store : readStudy(room.id, algorithm);
+                            return store ? [{ algorithm, sessions: store.sessions, events: store.events }] : [];
+                        });
+                        if (!saved.length) return latest;
+                        return JSON.stringify({ schemaVersion: 2, roomId: room.id,
+                            items: items.map(item => ({ id: item.id, prompt: item.prompt, answer: item.answer })),
+                            memoryModelVersion: MEMORY_MODEL_VERSION,
+                            persistenceFailed: study?.persistenceFailed ?? false,
+                            study: saved, latestDiagnostic: latest ? JSON.parse(latest) : null }, null, 2);
+                    } : undefined}
                     backgroundMusic={backgroundMusic}
                     soundEffects={soundEffects}
                     readQuestion={readQuestion}

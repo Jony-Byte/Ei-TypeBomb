@@ -24,11 +24,22 @@ export default function RoomGrid({
     onRoomNavigate?: (room: Room) => void;
 }) {
     const [loadedCount, setRenderCount] = useState(() =>
-        roomListRenderCount(rooms.map(room => room.id), restoreRoomId, PAGE_SIZE),
+        roomListRenderCount(
+            rooms.map((room) => room.id),
+            restoreRoomId,
+            PAGE_SIZE,
+        ),
     );
-    const renderCount = Math.max(loadedCount, restoreRoomId
-        ? roomListRenderCount(rooms.map(room => room.id), restoreRoomId, PAGE_SIZE)
-        : PAGE_SIZE);
+    const renderCount = Math.max(
+        loadedCount,
+        restoreRoomId
+            ? roomListRenderCount(
+                  rooms.map((room) => room.id),
+                  restoreRoomId,
+                  PAGE_SIZE,
+              )
+            : PAGE_SIZE,
+    );
     const sentinelRef = useRef<HTMLDivElement>(null);
     const hasMore = renderCount < rooms.length;
 
@@ -45,7 +56,10 @@ export default function RoomGrid({
             ([entry]) => {
                 if (entry.isIntersecting) {
                     setRenderCount((count) =>
-                        Math.min(Math.max(count, renderCount) + PAGE_SIZE, rooms.length),
+                        Math.min(
+                            Math.max(count, renderCount) + PAGE_SIZE,
+                            rooms.length,
+                        ),
                     );
                 }
             },
@@ -80,7 +94,10 @@ export default function RoomGrid({
                         variant="text"
                         onClick={() =>
                             setRenderCount((count) =>
-                                Math.min(Math.max(count, renderCount) + PAGE_SIZE, rooms.length),
+                                Math.min(
+                                    Math.max(count, renderCount) + PAGE_SIZE,
+                                    rooms.length,
+                                ),
                             )
                         }
                     >

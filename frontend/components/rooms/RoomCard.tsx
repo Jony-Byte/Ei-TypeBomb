@@ -39,7 +39,8 @@ export default function RoomCard({
     const roomLink = room.link ?? room.id;
 
     const prefetchOnIntent = useCallback(() => {
-        if (!prefetchRooms || room.visibility !== "public" || eagerPrefetch) return;
+        if (!prefetchRooms || room.visibility !== "public" || eagerPrefetch)
+            return;
         // ETB currently keeps dynamic Router Cache entries for 30 seconds.
         // Limit duplicate prefetches but allow a new one after expiry.
         const last = lastPrefetchRef.current;
@@ -97,14 +98,21 @@ export default function RoomCard({
         <article
             ref={articleRef}
             data-room-list-card={room.id}
-            data-cursor="button"
-            data-cursor-shape="1"
             className="room-card relative h-full w-full rounded-lg"
             onClickCapture={(event) => {
                 // Remember only normal navigation, not independent copy/save actions.
-                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !(event.target instanceof Element)) return;
+                if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey ||
+                    !(event.target instanceof Element)
+                )
+                    return;
                 const href = event.target.closest("a")?.getAttribute("href");
-                if (href === `/${roomLink}` || href === `/${roomLink}/edit`) onRoomNavigate?.();
+                if (href === `/${roomLink}` || href === `/${roomLink}/edit`)
+                    onRoomNavigate?.();
             }}
         >
             <Link
@@ -116,11 +124,18 @@ export default function RoomCard({
                 onNavigate={(event) => {
                     startNavigationProgress();
                     const source = surfaceRef.current;
-                    navigate?.(`/${roomLink}`, "push", event.preventDefault,
+                    navigate?.(
+                        `/${roomLink}`,
+                        "push",
+                        event.preventDefault,
                         source ? { transition: "morph", source } : undefined,
                     );
                 }}
-                prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
+                prefetch={
+                    prefetchRooms &&
+                    room.visibility === "public" &&
+                    eagerPrefetch
+                }
                 onMouseEnter={prefetchOnIntent}
                 onFocus={prefetchOnIntent}
                 href={`/${roomLink}`}
@@ -192,7 +207,11 @@ export default function RoomCard({
                         navigation="push"
                         navigationTransition="morph"
                         navigationMorphSource={surfaceRef}
-                        prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
+                        prefetch={
+                            prefetchRooms &&
+                            room.visibility === "public" &&
+                            eagerPrefetch
+                        }
                         aria-label="ルームを開く"
                         iconName="play"
                         variant="text"

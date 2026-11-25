@@ -1,6 +1,12 @@
 "use client";
 
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import {
+    useDeferredValue,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useState,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/lib/navigation-progress";
 import type { Room } from "@/type";
@@ -63,7 +69,9 @@ function RoomListContent({
     const [createError, setCreateError] = useState("");
     const view = initialView;
     const navigation = useRoomNavigation();
-    const [keyword, setKeyword] = useState(() => returnSelection?.keyword ?? "");
+    const [keyword, setKeyword] = useState(
+        () => returnSelection?.keyword ?? "",
+    );
     // Keep typing responsive even when many rooms match the search.
     const deferredKeyword = useDeferredValue(keyword);
     const { snapshot, ensureLoaded, reconcile, toggleSaved } =
@@ -152,13 +160,18 @@ function RoomListContent({
         });
     }, [roomsInView, deferredKeyword]);
 
-    const listReady = !returnSelection || (!viewerLoading && deferredKeyword === keyword);
+    const listReady =
+        !returnSelection || (!viewerLoading && deferredKeyword === keyword);
     useLayoutEffect(() => {
         if (listReady) navigation?.listReady();
     }, [listReady, navigation]);
 
     const onRoomNavigate = (room: Room) => {
-        navigation?.rememberSelection({ roomId: room.id, keyword: deferredKeyword, scrollTop: window.scrollY });
+        navigation?.rememberSelection({
+            roomId: room.id,
+            keyword: deferredKeyword,
+            scrollTop: window.scrollY,
+        });
     };
 
     const toggleSavedRoomState = async (roomId: string) => {
@@ -195,7 +208,10 @@ function RoomListContent({
             if (!roomLink) throw new Error("Room creation returned no link");
             startNavigationProgress();
             const editor = "/" + roomLink + "/edit";
-            navigation?.rememberSelection({ keyword: deferredKeyword, scrollTop: window.scrollY });
+            navigation?.rememberSelection({
+                keyword: deferredKeyword,
+                scrollTop: window.scrollY,
+            });
             if (!navigation?.navigate(editor, "push")) router.push(editor);
         } catch (error) {
             posthog.capture("room_creation_failed");
@@ -239,7 +255,10 @@ function RoomListContent({
                 </p>
             )}
 
-            <div data-room-list={listReady ? "ready" : "pending"} className="w-full">
+            <div
+                data-room-list={listReady ? "ready" : "pending"}
+                className="w-full"
+            >
                 {filteredRooms.length > 0 ? (
                     <RoomGrid
                         key={view + ":" + deferredKeyword}

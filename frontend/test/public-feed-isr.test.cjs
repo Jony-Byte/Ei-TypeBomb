@@ -342,7 +342,7 @@ test("room lists and details share the existing directional navigation and Shell
     assert.match(detail, /<RoomDetailShell title=\{title\} roomId=\{result.id\}>/);
     assert.match(shell, /size="xlarge"/);
     assert.match(shell, /back=\{backHref\}/);
-    assert.match(card, /navigate\?\.\(`\/\$\{roomLink\}`, "push", event\.preventDefault,\s+source \? \{ transition: "morph", source \}/);
+    assert.match(card, /navigate\?\.\(\s*`\/\$\{roomLink\}`,\s+"push",\s+event\.preventDefault,\s+source \? \{ transition: "morph", source \}/);
     assert.match(card, /href=\{`\/\$\{roomLink\}`\}\s+navigation="push"/);
     assert.match(card, /href=\{`\/\$\{roomLink\}\/edit`\}\s+navigation="push"\s+navigationScope="root"/);
 });

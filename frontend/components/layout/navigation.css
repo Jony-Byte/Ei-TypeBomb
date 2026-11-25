@@ -158,6 +158,15 @@ html:has([data-room-list], [data-room-detail], [data-room-editor]) {
     overflow-anchor: none;
 }
 
+/* Keep each card's controls and surface in the same stacking context so
+ * the whole card can be raised above its siblings during a return morph. */
+.room-card {
+    isolation: isolate;
+}
+.room-card:has(> [data-navigation-morphing]) {
+    z-index: 1;
+}
+
 /* The hit area stays in place while the visible card surface scales. */
 .room-card:has(.room-card-link:active) .room-card-surface {
     transform: scale(0.95);

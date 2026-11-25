@@ -8,6 +8,7 @@ type Frame = {
     origin: number | null;
     clip: string | null;
     header: number | null;
+    selectedAboveNeighbor?: boolean;
     layers: { x: number; y: number; contentY: number; height: number; headerHidden: boolean }[];
 };
 
@@ -45,16 +46,45 @@ async function openList(page: Page, waitForViewer = () => new Promise<void>(reso
 const card = (page: Page, id: number) => page.locator(`[data-room-list-card="room-${id}"]`);
 const overlay = (page: Page) => page.locator("[data-room-navigation-overlay]");
 
-async function sample(page: Page) {
-    await page.evaluate(() => {
+async function sample(page: Page, overlap?: { selected: number; neighbor: number }) {
+    await page.evaluate(overlap => {
         const state = window as typeof window & { roomFrames: Frame[]; roomFrameId: number };
         cancelAnimationFrame(state.roomFrameId);
         state.roomFrames = [];
         const frame = (timestamp: number) => {
             const overlay = document.querySelector<HTMLElement>("[data-room-navigation-overlay]");
             const header = document.querySelector("[data-navigation-header]");
+            const morphLayer = overlay?.dataset.roomNavigationOverlay === "morph" ? overlay.children[1] : undefined;
+            let selectedAboveNeighbor: boolean | undefined;
+            if (overlap && morphLayer) {
+                const surface = (id: number) => document.querySelector<HTMLElement>(
+                    `[data-room-list-card="room-${id}"] .room-card-surface`,
+                );
+                const selected = surface(overlap.selected);
+                const neighbor = surface(overlap.neighbor);
+                if (selected && neighbor && Number(getComputedStyle(selected).opacity) > 0) {
+                    const moving = morphLayer.getBoundingClientRect();
+                    const lower = neighbor.getBoundingClientRect();
+                    const left = Math.max(moving.left, lower.left);
+                    const top = Math.max(moving.top, lower.top);
+                    const right = Math.min(moving.right, lower.right, window.innerWidth);
+                    const bottom = Math.min(moving.bottom, lower.bottom, window.innerHeight);
+                    if (right - left > 8 && bottom - top > 8) {
+                        // The surfaces normally pass pointer events to the card links.
+                        // Include both surfaces in hit-testing to read their paint order.
+                        selected.style.pointerEvents = neighbor.style.pointerEvents = "auto";
+                        const hits = document.elementsFromPoint((left + right) / 2, (top + bottom) / 2);
+                        selected.style.removeProperty("pointer-events");
+                        neighbor.style.removeProperty("pointer-events");
+                        if (hits.includes(selected) && hits.includes(neighbor)) {
+                            selectedAboveNeighbor = hits.indexOf(selected) < hits.indexOf(neighbor);
+                        }
+                    }
+                }
+            }
             state.roomFrames.push({
                 timestamp,
+                selectedAboveNeighbor,
                 pathname: location.pathname,
                 scroll: window.scrollY,
                 overlay: overlay?.dataset.roomNavigationOverlay ?? null,
@@ -75,7 +105,7 @@ async function sample(page: Page) {
             state.roomFrameId = requestAnimationFrame(frame);
         };
         state.roomFrameId = requestAnimationFrame(frame);
-    });
+    }, overlap);
     return () => page.evaluate(() => {
         const state = window as typeof window & { roomFrames: Frame[]; roomFrameId: number };
         cancelAnimationFrame(state.roomFrameId);
@@ -150,7 +180,7 @@ for (const [name, viewport] of [
             expect(playing.every(frame => frame.scroll === 0)).toBe(true);
             expect(enter.filter(frame => frame.pathname === "/latest").every(frame => frame.scroll === top)).toBe(true);
 
-            const readReturn = await sample(page);
+            const readReturn = await sample(page, { selected: 45, neighbor: name === "mobile" ? 47 : 51 });
             await page.getByRole("link", { name: "戻る", exact: true }).click();
             await finish(page, "/latest", "morph");
             await expect(search).toHaveValue("Match");
@@ -160,6 +190,10 @@ for (const [name, viewport] of [
             expect(returning.length).toBeGreaterThan(2);
             expect(returning.every(frame => frame.scroll === resolvedTop)).toBe(true);
             expect(returning[0].clip).toMatch(/^inset\(/);
+            const overlapping = returning.flatMap(frame => frame.selectedAboveNeighbor ?? []);
+            expect(overlapping.length).toBeGreaterThan(0);
+            expect(overlapping).not.toContain(false);
+            await expect(page.locator("[data-navigation-morphing]")).toHaveCount(0);
 
             await page.evaluate(() => history.forward());
             await finish(page, "/room-45", "morph");

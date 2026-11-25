@@ -92,7 +92,9 @@ export function capturePageMorph(viewport: HTMLElement, source: HTMLElement): Pa
 
         const properties = ["transform", "transform-origin", "transition", "opacity", "will-change", "clip-path"] as const;
         const previous = properties.map(name => [name, destination.style.getPropertyValue(name), destination.style.getPropertyPriority(name)] as const);
+        destination.dataset.navigationMorphing = "";
         restore = () => {
+            delete destination.dataset.navigationMorphing;
             for (const [name, value, priority] of previous) {
                 if (value) destination.style.setProperty(name, value, priority);
                 else destination.style.removeProperty(name);

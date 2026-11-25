@@ -1,6 +1,6 @@
 import Shell from "@/components/layout/Shell";
 import Button from "@/components/ui/Button";
-import AuthForm from "@/components/account/AuthForm";
+import AuthForm from "@/components/account/AuthForm"; // dsafsda
 export default function Page() {
     return (
         <Shell title="アカウント作成">

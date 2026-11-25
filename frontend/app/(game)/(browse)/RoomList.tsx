@@ -1,7 +1,7 @@
 "use client";
 
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/lib/navigation-progress";
 import type { Room } from "@/type";
 import RoomGrid from "@/components/rooms/RoomGrid";
@@ -10,13 +10,13 @@ import { createNewRoom } from "@/lib/room/create";
 import { getSignInUrl } from "@/lib/auth/sign-in-url";
 import posthog from "posthog-js";
 import Shell from "@/components/layout/Shell";
-import { isPageMorphDestination } from "@/components/layout/page-morph";
+import { useRoomNavigation } from "@/components/layout/RoomNavigation";
 import Input from "@/components/ui/Input";
 import { View } from "@/type";
 import { getEditableRoomIds, selectRoomsForView } from "@/lib/room/list-view";
 import { useRoomListViewer } from "@/components/rooms/RoomListViewerProvider";
 import { getRoomListNavigationItems } from "@/lib/room/list-navigation";
-import { centerRoomListCard, finishRoomListReturn, getRoomListReturn, rememberRoomListSelection } from "@/lib/room/list-return";
+import type { RoomListSelection } from "@/lib/room/list-return";
 
 const EMPTY_SAVED_ROOM_IDS: string[] = [];
 
@@ -36,21 +36,33 @@ type Props = {
     deferViewer?: boolean;
 };
 
-export default function RoomList({
+export default function RoomList(props: Props) {
+    const pathname = usePathname();
+    const navigation = useRoomNavigation();
+    const selection = pathname ? navigation?.listReturn(pathname) : undefined;
+    return (
+        <RoomListContent
+            key={props.initialView + ":" + (selection?.keyword ?? "")}
+            {...props}
+            returnSelection={selection}
+        />
+    );
+}
+
+function RoomListContent({
     publicRooms,
     myRooms: initialMyRooms,
     initialView,
     currentUser: initialCurrentUser,
     initialSavedRoomIds,
     deferViewer = false,
-}: Props) {
+    returnSelection,
+}: Props & { returnSelection?: RoomListSelection }) {
     const router = useRouter();
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState("");
     const view = initialView;
-    const [returnSelection] = useState(() => getRoomListReturn(view));
-    const restored = useRef(false);
-    const listRef = useRef<HTMLDivElement>(null);
+    const navigation = useRoomNavigation();
     const [keyword, setKeyword] = useState(() => returnSelection?.keyword ?? "");
     // Keep typing responsive even when many rooms match the search.
     const deferredKeyword = useDeferredValue(keyword);
@@ -140,41 +152,13 @@ export default function RoomList({
         });
     }, [roomsInView, deferredKeyword]);
 
+    const listReady = !returnSelection || (!viewerLoading && deferredKeyword === keyword);
     useLayoutEffect(() => {
-        if (!returnSelection || restored.current || viewerLoading || deferredKeyword !== keyword) return;
-        const card = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-room-list-card]") ?? [])
-            .find(element => element.dataset.roomListCard === returnSelection.roomId);
-        const restore = () => {
-            if (card?.isConnected) centerRoomListCard(card);
-            else window.scrollTo({ top: returnSelection.scrollTop, behavior: "instant" });
-        };
-        restore();
-        const restoredTop = window.scrollY;
-        // History may apply its own scroll after the commit. Never measure a
-        // card again once the parent Navigation has transformed it for Morph,
-        // or change the scroll position after a native snapshot has been taken.
-        const frame = requestAnimationFrame(() => {
-            if (!listRef.current?.isConnected) return;
-            if (!(card && isPageMorphDestination(card)) && !document.documentElement.dataset.etbNavigation) {
-                if (window.scrollY !== restoredTop) {
-                    window.scrollTo({ top: restoredTop, behavior: "instant" });
-                }
-            }
-            restored.current = true;
-            finishRoomListReturn(returnSelection);
-        });
-        return () => cancelAnimationFrame(frame);
-    }, [returnSelection, viewerLoading, filteredRooms, deferredKeyword, keyword]);
+        if (listReady) navigation?.listReady();
+    }, [listReady, navigation]);
 
     const onRoomNavigate = (room: Room) => {
-        rememberRoomListSelection({
-            view,
-            path: window.location.pathname,
-            roomId: room.id,
-            roomLink: room.link ?? room.id,
-            keyword,
-            scrollTop: window.scrollY,
-        });
+        navigation?.rememberSelection({ roomId: room.id, keyword: deferredKeyword, scrollTop: window.scrollY });
     };
 
     const toggleSavedRoomState = async (roomId: string) => {
@@ -210,7 +194,9 @@ export default function RoomList({
             const roomLink = await createNewRoom();
             if (!roomLink) throw new Error("Room creation returned no link");
             startNavigationProgress();
-            router.push("/" + roomLink + "/edit");
+            const editor = "/" + roomLink + "/edit";
+            navigation?.rememberSelection({ keyword: deferredKeyword, scrollTop: window.scrollY });
+            if (!navigation?.navigate(editor, "push")) router.push(editor);
         } catch (error) {
             posthog.capture("room_creation_failed");
             console.error("Failed to create room:", error);
@@ -253,22 +239,22 @@ export default function RoomList({
                 </p>
             )}
 
-            <div ref={listRef} className="w-full">
-            {filteredRooms.length > 0 ? (
-                <RoomGrid
-                    key={view + ":" + deferredKeyword}
-                    rooms={filteredRooms}
-                    restoreRoomId={returnSelection?.roomId}
-                    onRoomNavigate={onRoomNavigate}
-                    savedIds={savedRoomIds}
-                    editableRoomIds={editableRoomIds}
-                    onToggleSaved={
-                        currentUser ? toggleSavedRoomState : undefined
-                    }
-                />
-            ) : (
-                <div>ルームが見つかりません。</div>
-            )}
+            <div data-room-list={listReady ? "ready" : "pending"} className="w-full">
+                {filteredRooms.length > 0 ? (
+                    <RoomGrid
+                        key={view + ":" + deferredKeyword}
+                        rooms={filteredRooms}
+                        restoreRoomId={returnSelection?.roomId}
+                        onRoomNavigate={onRoomNavigate}
+                        savedIds={savedRoomIds}
+                        editableRoomIds={editableRoomIds}
+                        onToggleSaved={
+                            currentUser ? toggleSavedRoomState : undefined
+                        }
+                    />
+                ) : (
+                    <div>ルームが見つかりません。</div>
+                )}
             </div>
         </Shell>
     );

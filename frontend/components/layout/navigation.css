@@ -128,40 +128,38 @@ html[data-etb-navigation="pop"]::view-transition-new(etb-navigation-content) {
     }
 }
 
-/* The common header is captured independently only for editor navigation. */
-html[data-etb-navigation-keep-header] [data-navigation-header] {
-    view-transition-name: etb-navigation-header;
-}
-html[data-etb-navigation-keep-header]::view-transition-group(etb-navigation-header),
-html[data-etb-navigation-keep-header]::view-transition-new(etb-navigation-header) {
-    animation: none;
-    mix-blend-mode: normal;
-    z-index: 2;
-}
-html[data-etb-navigation-keep-header]::view-transition-old(etb-navigation-header) {
-    display: none;
+/* Room transitions paint fixed, viewport-sized layers instead of animating
+ * a document-height view-transition group between two scroll offsets. */
+[data-room-navigation-overlay] {
+    overflow: clip;
+    pointer-events: none;
+    z-index: 80;
 }
 
-/* Editor snapshots can have different document scroll offsets. Anchor the
- * transition group to the viewport and position each snapshot independently.
- * The existing horizontal keyframes and easing remain unchanged. */
-html[data-etb-navigation-keep-header]::view-transition-group(etb-navigation-content) {
-    animation: none;
-    transform: none;
+[data-room-navigation-overlay="slide"] {
+    background: var(--color-background);
+}
+
+.room-navigation-slide-layer {
     overflow: clip;
 }
 
-html[data-etb-navigation-keep-header]::view-transition-old(etb-navigation-content) {
-    translate: 0 var(--etb-navigation-old-top, 0px);
+.room-navigation-slide-layer [data-navigation-header] {
+    visibility: hidden;
 }
 
-html[data-etb-navigation-keep-header]::view-transition-new(etb-navigation-content) {
-    translate: 0 var(--etb-navigation-new-top, 0px);
+[data-room-slide-live] [data-navigation-header] {
+    visibility: visible;
+    position: relative;
+    z-index: 81;
 }
 
-/* The stretched link owns the card's hit area. Independent sibling buttons
- * are stacked above it, so their active state never scales the article. */
-.room-card:has(.room-card-link:active) {
+html:has([data-room-list], [data-room-detail], [data-room-editor]) {
+    overflow-anchor: none;
+}
+
+/* The hit area stays in place while the visible card surface scales. */
+.room-card:has(.room-card-link:active) .room-card-surface {
     transform: scale(0.95);
 }
 .room-card:has(.room-card-link:focus-visible) {

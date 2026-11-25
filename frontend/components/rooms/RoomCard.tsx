@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startNavigationProgress } from "@/lib/navigation-progress";
 import type { Room } from "@/type";
@@ -33,6 +33,8 @@ export default function RoomCard({
     const navigate = useNavigation();
     const lastPrefetchRef = useRef<{ link: string; at: number } | null>(null);
     const articleRef = useRef<HTMLElement>(null);
+    const surfaceRef = useRef<HTMLDivElement>(null);
+    const titleId = useId();
     const [copied, setCopied] = useState(false);
     const roomLink = room.link ?? room.id;
 
@@ -94,11 +96,10 @@ export default function RoomCard({
     return (
         <article
             ref={articleRef}
-            data-navigation-morph-target={room.id}
             data-room-list-card={room.id}
             data-cursor="button"
             data-cursor-shape="1"
-            className="room-card relative flex h-full w-full flex-col rounded-lg bg-(--color-background-secondary) shadow-[8px_8px_0px_0px_var(--color-border)] transition-transform duration-(--duration-etb) ease-etb"
+            className="room-card relative h-full w-full rounded-lg"
             onClickCapture={(event) => {
                 // Remember only normal navigation, not independent copy/save actions.
                 if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !(event.target instanceof Element)) return;
@@ -106,28 +107,30 @@ export default function RoomCard({
                 if (href === `/${roomLink}` || href === `/${roomLink}/edit`) onRoomNavigate?.();
             }}
         >
+            <Link
+                className="room-card-link absolute inset-0 rounded-lg cursor-pointer"
+                aria-labelledby={titleId}
+                onClick={() => {
+                    posthog.capture("play_clicked", { room_id: room.id });
+                }}
+                onNavigate={(event) => {
+                    startNavigationProgress();
+                    const source = surfaceRef.current;
+                    navigate?.(`/${roomLink}`, "push", event.preventDefault,
+                        source ? { transition: "morph", source } : undefined,
+                    );
+                }}
+                prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
+                onMouseEnter={prefetchOnIntent}
+                onFocus={prefetchOnIntent}
+                href={`/${roomLink}`}
+            />
             <div
-                className="rounded-lg h-full"
-                data-cursor="button"
-                data-cursor-shape="1"
+                ref={surfaceRef}
+                data-navigation-morph-target={room.id}
+                className="room-card-surface pointer-events-none relative z-10 flex h-full flex-col rounded-lg bg-(--color-background-secondary) shadow-[8px_8px_0px_0px_var(--color-border)] transition-transform duration-(--duration-etb) ease-etb"
             >
-                <Link
-                    className="room-card-link flex flex-col items-start h-full gap-4 cursor-pointer after:absolute after:inset-0 after:rounded-lg after:content-['']"
-                    onClick={() => {
-                        posthog.capture("play_clicked", { room_id: room.id });
-                    }}
-                    onNavigate={(event) => {
-                        startNavigationProgress();
-                        const source = articleRef.current;
-                        navigate?.(`/${roomLink}`, "push", event.preventDefault,
-                            source ? { transition: "morph", source } : undefined,
-                        );
-                    }}
-                    prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
-                    onMouseEnter={prefetchOnIntent}
-                    onFocus={prefetchOnIntent}
-                    href={`/${roomLink}`}
-                >
+                <div className="flex h-full flex-col items-start gap-4">
                     <div className="flex min-w-0 px-4 pt-4 items-center gap-2">
                         <Icon
                             name={
@@ -139,6 +142,7 @@ export default function RoomCard({
                             }
                         />
                         <h2
+                            id={titleId}
                             className={`min-w-0 flex-1 w-full line-clamp-1 font-bold font-mono  ${!room.title && "italic opacity-50"}`}
                             data-cursor="text"
                         >
@@ -180,49 +184,49 @@ export default function RoomCard({
                             </span>
                         </div>
                     </div>
-                </Link>
-            </div>
+                </div>
 
-            <div className="relative z-10 mt-auto flex flex-wrap items-center justify-end pointer-events-none [&>*]:pointer-events-auto">
-                <Button
-                    href={`/${roomLink}`}
-                    navigation="push"
-                    navigationTransition="morph"
-                    navigationMorphSource={articleRef}
-                    prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
-                    aria-label="ルームを開く"
-                    iconName="play"
-                    variant="text"
-                    padding="middle"
-                />
-                {isOwner && (
+                <div className="mt-auto flex flex-wrap items-center justify-end [&>*]:pointer-events-auto">
                     <Button
-                        href={`/${roomLink}/edit`}
+                        href={`/${roomLink}`}
                         navigation="push"
-                        navigationScope="root"
-                        prefetch={false}
-                        aria-label="ルームを編集"
-                        iconName="pen"
+                        navigationTransition="morph"
+                        navigationMorphSource={surfaceRef}
+                        prefetch={prefetchRooms && room.visibility === "public" && eagerPrefetch}
+                        aria-label="ルームを開く"
+                        iconName="play"
                         variant="text"
                         padding="middle"
                     />
-                )}
-                <Button
-                    onClick={copyRoomLink}
-                    aria-label="ルームのリンクをコピー"
-                    iconName={copied ? "check" : "link"}
-                    variant="text"
-                    padding="middle"
-                />
-                {onToggleSaved && (
+                    {isOwner && (
+                        <Button
+                            href={`/${roomLink}/edit`}
+                            navigation="push"
+                            navigationScope="root"
+                            prefetch={false}
+                            aria-label="ルームを編集"
+                            iconName="pen"
+                            variant="text"
+                            padding="middle"
+                        />
+                    )}
                     <Button
-                        onClick={onToggleSaved}
-                        aria-label={isSaved ? "保存を解除" : "ルームを保存"}
-                        iconName={isSaved ? "bookmarkOff" : "bookmark"}
+                        onClick={copyRoomLink}
+                        aria-label="ルームのリンクをコピー"
+                        iconName={copied ? "check" : "link"}
                         variant="text"
                         padding="middle"
                     />
-                )}
+                    {onToggleSaved && (
+                        <Button
+                            onClick={onToggleSaved}
+                            aria-label={isSaved ? "保存を解除" : "ルームを保存"}
+                            iconName={isSaved ? "bookmarkOff" : "bookmark"}
+                            variant="text"
+                            padding="middle"
+                        />
+                    )}
+                </div>
             </div>
         </article>
     );

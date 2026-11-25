@@ -336,8 +336,6 @@ test("room lists and details share the existing directional navigation and Shell
     const detail = read("app/(game)/(browse)/[link]/page.tsx");
     const shell = read("app/(game)/(browse)/[link]/RoomDetailShell.tsx");
     const card = read("components/rooms/RoomCard.tsx");
-    assert.match(browser, /<Navigation>\{children\}<\/Navigation>/);
-    assert.match(browser, /useState\(\(\) => getRoomListBackPath\(pathname\) \?\? "\/"\)/);
     assert.match(browser, /isFeed && signedInItems\.some/);
     assert.match(browser, /setBackHref\(listPath\)/);
     assert.match(list, /size="xlarge"/);
@@ -357,20 +355,6 @@ test("editor links use a persistent root navigation across route groups", () => 
     assert.doesNotMatch(read("app/(editor)/[link]/edit/EditorClient.tsx"), /animateAppear=\{true\}/);
 });
 
-test("room-card entry and return share a keyed morph while editor keeps slide", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const card = read("components/rooms/RoomCard.tsx");
-    const nav = read("components/layout/Navigation.tsx");
-    const css = read("components/layout/navigation.css");
-    assert.match(card, /navigationTransition="morph"\s+navigationMorphSource=\{articleRef\}/);
-    assert.match(read("app/(game)/(browse)/[link]/RoomDetailShell.tsx"), /size="xlarge"\s+morphTarget=\{roomId\}/);
-    assert.match(nav, /capturePageMorph\(node, source\)/);
-    assert.match(nav, /request.morph.play\(destination,/);
-    assert.match(nav, /clearMorph\(request\)/);
-    assert.doesNotMatch(css, /etb-navigation-morph/);
-    assert.match(card, /href=\{\x60\/\$\{roomLink\}\/edit\x60\}\s+navigation="push"\s+navigationScope="root"/);
-});
-
 test("page morph uses slide timing and retargets the live destination", () => {
     const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
     const morph = read("components/layout/page-morph.ts");
@@ -383,30 +367,11 @@ test("page morph uses slide timing and retargets the live destination", () => {
     assert.match(read("components/ui/Morph.tsx"), /createMorphClock\(root,/);
 });
 
-test("room detail back morph selects only the original room card", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const nav = read("components/layout/Navigation.tsx");
-    const shell = read("components/layout/Shell.tsx");
-    const card = read("components/rooms/RoomCard.tsx");
-    assert.match(card, /data-navigation-morph-target=\{room.id\}/);
-    assert.match(shell, /navigation=\{back \? "pop" : undefined\}\s+navigationTransition=\{morphTarget \? "morph" : "slide"\}\s+navigationMorphSource=\{morphTarget \? morphRef : undefined\}/);
-    assert.match(read("components/layout/page-morph.ts"), /key: source.dataset.navigationMorphTarget/);
-    assert.match(nav, /element !== source && \(key === undefined \|\| element.dataset.navigationMorphTarget === key\)/);
-    assert.match(nav, /if \(request.direction === "pop"\) \{\s*\/\/[^\n]+\n\s*centerRoomListCard\(destination\);\s*\}[\s\S]*?request\.morph\.play\(destination,/);
-    assert.match(read("lib/room/list-return.ts"), /card\.scrollIntoView\(\{ block: "center", inline: "nearest", behavior: "instant" \}\)/);
-    assert.match(nav, /if \(!destination \|\|[^}]+cancel\(\)/);
-});
-
 test("nested navigation releases document state only for the current transition owner", () => {
     const nav = readFileSync(path.join(__dirname, "..", "components/layout/Navigation.tsx"), "utf8");
     assert.match(nav, /function releaseDocumentTransition\(request: Request\) \{\s*if \(documentTransition\?\.request !== request\) return;\s*documentTransition = null;/);
     assert.match(nav, /documentTransition\?\.cancel\(\);\s*documentTransition = \{ request, cancel \};/);
-    assert.match(nav, /clearMorph\(request\);\s*releaseDocumentTransition\(request\);\s*node.style.viewTransitionName = "";/);
-});
-
-test("morph pushes reset scroll before redirect or missing-target cancellation", () => {
-    const nav = readFileSync(path.join(__dirname, "..", "components/layout/Navigation.tsx"), "utf8");
-    assert.match(nav, /if \(request\.morph\) \{\s*stop\(request\);[\s\S]*?if \(request\.direction === "push"\) \{\s*window\.scrollTo\(\{ top: 0, behavior: "instant" \}\);\s*\}\s*if \(!matches\) \{ cancel\(\); return; \}[\s\S]*?if \(!destination \|\|[^}]+cancel\(\)/);
+    assert.match(nav, /releaseDocumentTransition\(request\);\s*node.style.viewTransitionName = "";/);
 });
 
 test("page morph crops both outgoing and incoming layers without changing page layout", () => {
@@ -417,38 +382,4 @@ test("page morph crops both outgoing and incoming layers without changing page l
     assert.match(morph, /clipToVisible\(destination, fullTarget, target\)/);
     assert.match(morph, /const visible = intersectMorphRect\(next, screenRect\(\)\)/);
     assert.match(morph, /const properties = \[[^\]]*"clip-path"\]/);
-});
-
-
-test("editor navigation isolates the shared header and animates the history return", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const nav = read("components/layout/Navigation.tsx");
-    const css = read("components/layout/navigation.css");
-    const editor = read("app/(editor)/[link]/edit/EditorClient.tsx");
-    assert.match(nav, /root && \(isEditorPath\(current\) \|\| isEditorPath\(target\)\)/);
-    assert.match(nav, /if \(request.historyBack\) router.back\(\)/);
-    assert.match(nav, /delete root.dataset.etbNavigationKeepHeader/);
-    assert.match(read("components/layout/Header.tsx"), /data-navigation-header/);
-    assert.match(css, /view-transition-name: etb-navigation-header/);
-    assert.match(editor, /const editorBack = useEditorBack\(\)/);
-});
-
-test("editor scroll reset survives an animation timeout and runs before the pending request guard", () => {
-    const nav = readFileSync(path.join(__dirname, "..", "components/layout/Navigation.tsx"), "utf8");
-    assert.match(nav, /if \(editorScrollTarget\.current === normalize\(pathname\)\) \{\s*window\.scrollTo\(\{ top: 0, behavior: "instant" \}\);\s*\}[\s\S]*?if \(!request \|\| !pathname\) return;/);
-    assert.match(nav, /editorScrollTarget\.current = target;\s*router\.push\(href, \{ scroll: false \}\);/);
-    assert.match(nav, /request\.timer = setTimeout\(\(\) => \{\s*if \(pending\.current === request\) pending\.current = null;\s*stop\(request, true\);\s*\}, 500\)/);
-    assert.match(nav, /function cancel\(\) \{\s*editorScrollTarget\.current = null;/);
-});
-
-test("room return does not recenter an animated destination after the morph begins", () => {
-    const read = (file) => readFileSync(path.join(__dirname, "..", file), "utf8");
-    const list = read("app/(game)/(browse)/RoomList.tsx");
-    const morph = read("components/layout/page-morph.ts");
-    assert.match(list, /restore\(\);\s*const restoredTop = window\.scrollY;/);
-    assert.match(list, /if \(!\(card && isPageMorphDestination\(card\)\) && !document\.documentElement\.dataset\.etbNavigation\)/);
-    assert.match(list, /window\.scrollTo\(\{ top: restoredTop, behavior: "instant" \}\)/);
-    const frame = list.slice(list.indexOf("const frame = requestAnimationFrame"), list.indexOf("return () => cancelAnimationFrame(frame)"));
-    assert.doesNotMatch(frame, /centerRoomListCard\(|restore\(\)/);
-    assert.match(morph, /activeDestinations\.add\(destination\);\s*restore = \(\) => \{\s*activeDestinations\.delete\(destination\);/);
 });

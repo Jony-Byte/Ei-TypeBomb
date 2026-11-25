@@ -321,8 +321,8 @@ test("only nested security links opt into directional navigation", () => {
     const shell = readFileSync(
         new URL("../components/layout/Shell.tsx", `file://${__filename}`), "utf8",
     );
-    assert.match(security, /href="\/account\/security\/email" navigation="push"/);
-    assert.match(security, /href="\/account\/security\/password" navigation="push"/);
+    assert.match(security, /href="\/account\/security\/email"\s+navigation="push"/);
+    assert.match(security, /href="\/account\/security\/password"\s+navigation="push"/);
     assert.match(layout, /<Navigation>\{children\}<\/Navigation>/);
     assert.match(accountPage, /back=\{backLink\}/);
     assert.match(shell, /navigation=\{back \? "pop" : undefined\}/);

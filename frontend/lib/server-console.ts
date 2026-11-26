@@ -1,3 +1,6 @@
+import { incidentCode, incidentSource } from "../../backend/shared/incident-reporting";
+import { reportServerIncident } from "./server-incidents";
+
 type Context = "REQ" | "AUTH" | "DB" | "POSTHOG" | "SERVER";
 
 const ansi = {
@@ -48,6 +51,12 @@ export const serverError = (
         : "[ERROR]";
 
     console.error(`${errorLabel} ${label(context)} ${message}`);
+
+    // POSTHOG errors must never recurse into the telemetry transport.
+    if (context !== "POSTHOG") reportServerIncident({
+        service: "web", stage: context.toLowerCase(), code: incidentCode(error),
+        source: incidentSource(new Error().stack),
+    });
 
     if (error instanceof Error) {
         console.error(error.message);

@@ -1,3 +1,4 @@
+import { withIncidentScope } from "../../server-incidents";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
@@ -39,7 +40,7 @@ async function atomicResponse(
         return res;
     }) as typeof res.end;
     try {
-        await withOAuthLock(run, onPhase);
+        await withIncidentScope(() => withOAuthLock(run, onPhase));
     } finally {
         res.end = original;
     }
@@ -575,7 +576,9 @@ export function createOAuthHandler(
             const invalidRequest =
                 error instanceof oauthErrors.SessionNotFound ||
                 error instanceof oauthErrors.InvalidRequest;
-            if (!invalidRequest) logOAuthServerFailure(error, stage);
+            if (!invalidRequest) {
+                await withIncidentScope(async () => logOAuthServerFailure(error, stage));
+            }
             if (!res.headersSent) {
                 for (const name of ["Location", "Content-Length", "Set-Cookie"])
                     res.removeHeader(name);

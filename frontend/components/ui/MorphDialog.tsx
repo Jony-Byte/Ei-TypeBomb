@@ -12,6 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import Morph from "./Morph";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
 
 export type MorphDialogProps = {
     open: boolean;
@@ -187,7 +188,7 @@ export default function MorphDialog({
             );
         (focusable()[0] ?? dialog)?.focus({ preventScroll: true });
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
+            if (matchesShortcut(event, "Enter", true)) {
                 event.preventDefault();
                 closeFromKeyboard();
             }
@@ -235,6 +236,7 @@ export default function MorphDialog({
                         <button
                             type="button"
                             aria-label="ダイアログを閉じる"
+                            aria-keyshortcuts="Shift+Enter"
                             tabIndex={-1}
                             aria-hidden="true"
                             onClick={() => {

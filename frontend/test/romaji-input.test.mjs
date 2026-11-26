@@ -15,6 +15,7 @@ import {
     shouldClearForTimedHint,
     shouldIgnoreIncorrectHintKey,
     normalizeHyphenInput,
+    normalizeTypingInput,
     displayTypingCharacter,
 } from "../lib/romaji-input.mjs";
 
@@ -546,4 +547,59 @@ test("space-only cells ignore any non-space key without counting a miss", () => 
     const accepted = editKanaCell("あ い", before, 1, "", " ");
     assert.equal(accepted.accepted, true);
     assert.deepEqual(accepted.cells, ["あ", " ", ""]);
+});
+
+
+test("Latin input commits the answer's original case in both directions", () => {
+    for (const [answer, keys] of [
+        ["Apple", "apple"],
+        ["apple", "APPLE"],
+        ["iPhone", "IPHONE"],
+        ["GitHub", "gItHuB"],
+        ["ABC 123", "abc 123"],
+    ]) {
+        const entered = Array.from(keys, (key, index) =>
+            normalizeTypingInput(answer[index], key),
+        ).join("");
+        assert.equal(entered, answer);
+        assert.deepEqual(type(answer, keys), { committed: answer, composing: "" });
+    }
+    assert.equal(normalizeTypingInput("a", "X"), "X");
+    assert.equal(normalizeTypingInput("A", "x"), "x");
+    assert.equal(normalizeTypingInput("a", "Ａ"), "Ａ");
+    assert.equal(normalizeTypingInput("a", ""), "");
+    assert.equal(normalizeTypingInput(undefined, "A"), "A");
+    assert.equal(normalizeTypingInput("ー", "-"), "ー");
+    assert.equal(normalizeTypingInput(" ", "A"), "A");
+    assert.equal(normalizeTypingInput("1", "2"), "2");
+});
+
+test("case normalization also applies to editable mixed kana answers and hints", () => {
+    const answer = "さ-Apple";
+    let cells = ["さ", "-", "", "", "", "", ""];
+    let cursor = 2;
+    let result;
+    for (const key of "aPPLE") {
+        result = editKanaCell(answer, cells, cursor, "", key);
+        assert.equal(result.accepted, true);
+        cells = result.cells;
+        cursor = result.cursor;
+    }
+    assert.equal(cells.join(""), answer);
+    assert.equal(result.correct, true);
+    assert.deepEqual(type("Aさb", "aSAB"), { committed: "Aさb", composing: "" });
+    assert.equal(shouldIgnoreIncorrectHintKey("Apple", 0, "", "a", 1), false);
+    assert.equal(shouldIgnoreIncorrectHintKey("apple", 0, "", "A", 1), false);
+    assert.equal(shouldIgnoreIncorrectHintKey("Apple", 0, "", "x", 1), true);
+    const wrong = editKanaCell("さa", ["さ", ""], 1, "", "X");
+    assert.equal(wrong.cells[1], "X");
+    assert.equal(wrong.correct, false);
+});
+
+test("spectators canonicalize an older client's Latin prefix without consuming pending romaji", () => {
+    assert.deepEqual(decodeKanaProgress("Apple", "aPP"), { committed: "App", composing: "" });
+    assert.deepEqual(decodeKanaProgress("apple", "APP"), { committed: "app", composing: "" });
+    assert.deepEqual(decodeKanaProgress("Aちゃ", "at"), { committed: "A", composing: "t" });
+    assert.deepEqual(decodeKanaProgress("aちゃ", "AT"), { committed: "a", composing: "T" });
+    assert.deepEqual(decodeKanaProgress("aちゃ", "x"), { committed: "", composing: "x" });
 });

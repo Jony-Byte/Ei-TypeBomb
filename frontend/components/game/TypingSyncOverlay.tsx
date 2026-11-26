@@ -7,7 +7,7 @@ import type { Item, LegacyWord } from "@/type";
 import { getTypingAnswer } from "@/lib/answer-mode";
 import { legacyWireWordsToItems } from "@/lib/item";
 import KanaTypingBoxes from "@/components/recall/KanaTypingBoxes";
-import { decodeKanaProgress, hasHiragana } from "@/lib/romaji-input.mjs";
+import { decodeKanaProgress, hasHiragana, normalizeTypingInput } from "@/lib/romaji-input.mjs";
 
 type RoomSnapshot = {
     users: { id: string; displayName?: string }[];
@@ -114,7 +114,7 @@ export default function TypingSyncOverlay({
                                 className={`${char === " " ? "w-4" : "w-8"} h-16 p-1 font-serif text-3xl font-bold`}
                             >
                                 <div className="flex h-full w-full items-center justify-center border-b border-(--color-border)">
-                                    {currentInput[index] ?? ""}
+                                    {normalizeTypingInput(char, currentInput[index] ?? "")}
                                 </div>
                             </div>
                         ))

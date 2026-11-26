@@ -22,7 +22,7 @@ import {
     editKanaCell,
     hasHiragana,
     nextKanaCursor,
-    normalizeHyphenInput,
+    normalizeTypingInput,
     displayTypingCharacter,
     shouldIgnoreNonSpaceAtSpace,
     shouldClearForTimedHint,
@@ -604,7 +604,11 @@ function TypingAttempt({
             ? syncedInput
             : currentInput
         : input.join("");
-    const displayChars = isReadonly ? [...displayInput] : input;
+    const displayChars = isReadonly
+        ? [...displayInput].map((char, index) =>
+              normalizeTypingInput(english[index], char),
+          )
+        : input;
     const remoteKanaProgress =
         isKanaAnswer && isReadonly
             ? decodeKanaProgress(english, displayInput)
@@ -897,7 +901,7 @@ function TypingAttempt({
                                 if (char !== " ") {
                                     const next = [...input];
                                     next[currentSelection] =
-                                        normalizeHyphenInput(targetChar, char);
+                                        normalizeTypingInput(targetChar, char);
                                     setInput(next);
                                     moveToNext(next);
                                 }

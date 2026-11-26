@@ -25,6 +25,21 @@ export const normalizeHyphenInput = (expected, key) =>
         ? expected
         : key;
 
+// ASCII letters match in either case, but commit the answer's exact glyph.
+// Do not normalize unrelated Unicode letters, whitespace, or wrong keys.
+/** @param {string | undefined} expected @param {string} key */
+export const normalizeTypingInput = (expected, key) => {
+    if (
+        expected !== undefined &&
+        /^[A-Za-z]$/.test(expected) &&
+        /^[A-Za-z]$/.test(key) &&
+        expected.toLowerCase() === key.toLowerCase()
+    ) {
+        return expected;
+    }
+    return normalizeHyphenInput(expected, key);
+};
+
 /** Display Japanese long vowels as written; fullwidth hyphen-minus uses its ASCII key label. */
 /** @param {string} character */
 export const displayTypingCharacter = (character) =>
@@ -50,7 +65,8 @@ export function advanceKanaInput(answer, progress, rawKey) {
     if (!isHiragana(target)) {
         if (
             !composing &&
-            normalizeHyphenInput(target, key) === target?.toLowerCase()
+            target !== undefined &&
+            normalizeTypingInput(target, rawKey) === target
         ) {
             return {
                 accepted: true,
@@ -163,9 +179,13 @@ export const encodeKanaProgress = ({ committed, composing }) =>
  */
 export function decodeKanaProgress(answer, wire) {
     let i = 0;
-    while (i < answer.length && i < wire.length && answer[i] === wire[i])
+    while (
+        i < answer.length &&
+        i < wire.length &&
+        normalizeTypingInput(answer[i], wire[i]) === answer[i]
+    )
         i += 1;
-    return { committed: wire.slice(0, i), composing: wire.slice(i) };
+    return { committed: answer.slice(0, i), composing: wire.slice(i) };
 }
 
 /** @param {string} composing */
@@ -237,7 +257,7 @@ export function advanceEditableKanaAt(answer, cursor, composing, rawKey) {
     if (!isHiragana(char)) {
         return {
             accepted: true,
-            emitted: normalizeHyphenInput(char, rawKey),
+            emitted: normalizeTypingInput(char, rawKey),
             composing: "",
         };
     }
@@ -429,7 +449,7 @@ export function shouldIgnoreIncorrectHintKey(
         return false;
     const target = answer[cursor];
     if (!isHiragana(target))
-        return normalizeHyphenInput(target, key) !== target;
+        return normalizeTypingInput(target, key) !== target;
 
     return !advanceKanaInput(
         answer,

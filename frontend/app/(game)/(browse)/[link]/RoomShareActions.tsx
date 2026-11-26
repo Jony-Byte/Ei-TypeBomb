@@ -70,6 +70,7 @@ export default function RoomShareActions({
                 inert={!showQrCode}
                 role="dialog"
                 aria-modal="true"
+                aria-hidden={!showQrCode}
                 aria-label="ルームのQRコード"
                 aria-keyshortcuts="Enter"
             >

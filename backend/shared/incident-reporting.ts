@@ -99,6 +99,7 @@ export async function sendIncident(config: IncidentConfig, incident: Incident, t
         if (url.protocol !== "https:" || url.username || url.password) return false;
         const response = await transport(url.toString(), {
             method: "POST",
+            redirect: "error",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(buildIncidentEvent(config, incident)),
             signal: AbortSignal.timeout(2_000),

@@ -1,6 +1,11 @@
 import type { RoomDO } from "./RoomDO";
 import type { ClusterDO, ReplicaDO } from "./ClusterDO";
 export interface Env {
+    NEXT_PUBLIC_POSTHOG_KEY?: string;
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN?: string;
+    POSTHOG_HOST?: string;
+    NEXT_PUBLIC_POSTHOG_HOST?: string;
+    ETB_DEPLOYMENT_ENVIRONMENT?: string;
     CLUSTER: DurableObjectNamespace<ClusterDO>;
     REPLICAS: DurableObjectNamespace<ReplicaDO>;
     CLUSTER_DRAINING?: string;

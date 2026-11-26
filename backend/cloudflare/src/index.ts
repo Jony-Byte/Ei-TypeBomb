@@ -1,3 +1,4 @@
+import { reportWorkerIncident } from "./lib/incidents";
 import { parsePageExit } from "../../shared/distributed/pageExit";
 import { recoveryFailure, transientRecoveryFailure } from "../../shared/distributed/recovery";
 import { readLimitedBody } from "../../shared/distributed/replication";
@@ -16,8 +17,13 @@ const ROOM_ID =
 
 export default {
     async scheduled(_event: ScheduledController, env: Env): Promise<void> {
-        if (clusterConfig(env, "websocket"))
-            await new WorkerControl(env).register();
+        try {
+            if (clusterConfig(env, "websocket"))
+                await new WorkerControl(env).register();
+        } catch (error) {
+            await reportWorkerIncident(env, "scheduled_registration", error);
+            throw error;
+        }
     },
     async fetch(request: Request, env: Env): Promise<Response> {
         const url = new URL(request.url);

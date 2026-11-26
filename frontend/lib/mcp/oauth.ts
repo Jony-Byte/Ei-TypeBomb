@@ -1,6 +1,9 @@
+import { errors as joseErrors } from "jose";
+import { reportServerIncident } from "../server-incidents";
+import { oauthFailureCode } from "./authorization-server/diagnostics";
 import { getEtbUrl } from "@/lib/config/base-url";
 import { getMcpResource, getMcpIssuer } from "./authorization-server/config";
-import { verifyMcpToken } from "./authorization-server/verify";
+import { verifyMcpToken, InvalidMcpTokenError } from "./authorization-server/verify";
 export { getMcpResource, getMcpIssuer };
 export const getMcpMetadataUrl = () =>
     getEtbUrl("/.well-known/oauth-protected-resource/api/mcp");
@@ -39,6 +42,9 @@ export async function authenticateMcpRequest(
     try {
         return await verifyMcpToken(match[1]);
     } catch (error) {
+        if (!(error instanceof InvalidMcpTokenError) && !(error instanceof joseErrors.JOSEError)) {
+            reportServerIncident({ service: "mcp-auth", stage: "verify", code: oauthFailureCode(error), source: "oauth" });
+        }
         const errorCode =
             typeof error === "object" &&
             error !== null &&

@@ -33,3 +33,22 @@ test("sends to capture endpoint, skips missing configuration and tolerates failu
     assert.equal(await sendIncident({ token: "test" }, incident, async () => { throw new Error("secret"); }), false);
     assert.equal(await sendIncident({ token: "test" }, incident, async () => new Response(null, { status: 503 })), false);
 });
+
+test("Node incident wrappers do not collapse independent call sites into a single issue", () => {
+    const stack = (file: string, line: number) => [
+        "Error",
+        "    at reportNodeIncident (/app/backend/server/src/lib/incidents.ts:9:76)",
+        "    at logError (/app/backend/server/src/lib/console.ts:302:9)",
+        `    at operation (/app/backend/server/src/${file}:${line}:5)`,
+    ].join("\n");
+    const first = incidentSource(stack("index.ts", 1102));
+    const second = incidentSource(stack("get.ts", 42));
+    assert.equal(first, "index.ts:1102");
+    assert.equal(second, "get.ts:42");
+    assert.equal(incidentSource(stack("index.ts", 1102)), first);
+    const fingerprint = (source: string) => buildIncidentEvent({}, {
+        service: "node-server", stage: "operation", code: "operation_failed", source,
+    }).properties.$exception_fingerprint;
+    assert.notEqual(fingerprint(first), fingerprint(second));
+    assert.equal(incidentSource("Error\n    at reportNodeIncident (C:\\app\\dist\\incidents.js:9:1)\n    at start (C:\\app\\dist\\index.js:12:1)"), "index.js:12");
+});

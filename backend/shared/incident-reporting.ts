@@ -45,7 +45,7 @@ export function incidentCode(error: unknown): string {
 export function incidentSource(stack: string | undefined): string {
     for (const frame of (stack ?? "").split("\n").slice(1)) {
         const match = frame.match(/(?:^|[\\/])([a-zA-Z0-9_.-]+\.(?:[cm]?[jt]sx?)):(\d{1,7}):(\d{1,7})\)?$/);
-        if (!match || /^(?:server-console|console|incident-reporting|server-incidents|instrumentation)\./.test(match[1])) continue;
+        if (!match || /^(?:server-console|console|incident-reporting|server-incidents|incidents|instrumentation)\./.test(match[1])) continue;
         return match[1] + ":" + match[2];
     }
     return "unknown";

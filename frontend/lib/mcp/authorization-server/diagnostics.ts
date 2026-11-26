@@ -1,3 +1,5 @@
+import { reportServerIncident } from "../../server-incidents";
+
 const SAFE_ERROR_CODES = new Set([
     "SELF_SIGNED_CERT_IN_CHAIN",
     "DEPTH_ZERO_SELF_SIGNED_CERT",
@@ -17,6 +19,7 @@ const SAFE_ERROR_CODES = new Set([
     "ECONNRESET",
     "ETIMEDOUT",
     "MCP_DATABASE_TLS_REQUIRED",
+    "MCP_STORAGE_DECRYPTION_FAILED",
 ]);
 
 export function oauthFailureCode(error: unknown): string {
@@ -51,10 +54,9 @@ export function logOAuthServerFailure(
     error: unknown,
     stage: OAuthFailureStage = "unknown",
 ): void {
-    console.error("[MCP OAuth] request could not be completed", {
-        code: oauthFailureCode(error),
-        stage,
-    });
+    const code = oauthFailureCode(error);
+    console.error("[MCP OAuth] request could not be completed", { code, stage });
+    reportServerIncident({ service: "mcp-oauth", code, stage, source: "oauth" });
 }
 
 /** Log only a fixed endpoint label and HTTP status, never client secrets,

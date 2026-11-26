@@ -1,3 +1,6 @@
+import { ClientError } from "../../../shared/validation";
+import { incidentCode } from "../../../shared/incident-reporting";
+import { reportNodeIncident } from "./incidents";
 import { capturePostHogEvent } from "./posthog";
 import { capturePostHogLog } from "./posthogLogs";
 import { logErrorToFile, logToFile } from "./fileLogger";
@@ -314,21 +317,14 @@ export const logError = (
     metadata?: LogMetadata,
 ) => {
     logErrorToFile(message, error, metadata);
-    capturePostHogLog("ERROR", "ERROR", message, {
-        ...(metadata ?? {}),
-        ...(error instanceof Error
-            ? {
-                  error_name: error.name,
-                  error_message: error.message,
-                  error_stack: error.stack,
-              }
-            : error !== undefined
-              ? { error_value: error }
-              : {}),
-    });
-    capturePostHogEvent("server_error", {
-        error_name: error instanceof Error ? error.name : "UnknownError",
-    });
+    // Keep detailed diagnostics on the local server; remote errors contain
+    // no room/user identifiers, raw messages or stacks.
+    if (!(error instanceof ClientError)) {
+        const code = incidentCode(error);
+        capturePostHogLog("ERROR", "ERROR", "Server operation failed", { error_code: code });
+        capturePostHogEvent("server_error", { error_name: code });
+        void reportNodeIncident("operation", error);
+    }
 
     const roomId = metadata?.roomId;
     if (isInteractive && typeof roomId === "string" && roomId.length > 0) {

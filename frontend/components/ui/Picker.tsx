@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import Button from "./Button";
 import { Icon } from "./Icon";
 import Morph from "./Morph";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
 
 export type PickerProps = {
     name: string;
@@ -108,7 +109,7 @@ export default function Picker({
             menu?.querySelector<HTMLButtonElement>("[role=menuitem]") ?? menu
         )?.focus();
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
+            if (matchesShortcut(event, "Enter", true)) {
                 event.preventDefault();
                 setOpen(false);
             }
@@ -176,6 +177,7 @@ export default function Picker({
             <button
                 type="button"
                 aria-label="ピッカーを閉じる"
+                aria-keyshortcuts="Shift+Enter"
                 tabIndex={-1}
                 aria-hidden="true"
                 onClick={() => setOpen(false)}

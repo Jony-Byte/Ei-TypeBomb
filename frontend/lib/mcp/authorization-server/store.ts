@@ -41,22 +41,30 @@ function encode(model: string, id: string, payload: Payload) {
 }
 
 function decode(model: string, id: string, row: Stored): Payload {
-    const bytes = Buffer.from(row.payload, "base64url");
-    const decipher = createDecipheriv(
-        "aes-256-gcm",
-        getAuthorizationServerConfig().encryptionKey,
-        bytes.subarray(0, 12),
-    );
-    decipher.setAAD(Buffer.from(`${model}:${id}`));
-    decipher.setAuthTag(bytes.subarray(12, 28));
-    const payload = JSON.parse(
-        Buffer.concat([
-            decipher.update(bytes.subarray(28)),
-            decipher.final(),
-        ]).toString(),
-    );
-    if (row.consumed) payload.consumed = Number(row.consumed);
-    return payload;
+    const key = getAuthorizationServerConfig().encryptionKey;
+    try {
+        const bytes = Buffer.from(row.payload, "base64url");
+        const decipher = createDecipheriv(
+            "aes-256-gcm",
+            key,
+            bytes.subarray(0, 12),
+        );
+        decipher.setAAD(Buffer.from(`${model}:${id}`));
+        decipher.setAuthTag(bytes.subarray(12, 28));
+        const payload = JSON.parse(
+            Buffer.concat([
+                decipher.update(bytes.subarray(28)),
+                decipher.final(),
+            ]).toString(),
+        );
+        if (row.consumed) payload.consumed = Number(row.consumed);
+        return payload;
+    } catch {
+        // Never forward the crypto error, ciphertext, or key material.
+        throw Object.assign(new Error("OAuth stored payload could not be decoded"), {
+            code: "MCP_STORAGE_DECRYPTION_FAILED",
+        });
+    }
 }
 
 async function query(sql: string, values: unknown[]) {

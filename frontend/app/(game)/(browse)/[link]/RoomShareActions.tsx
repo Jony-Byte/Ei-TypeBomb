@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import posthog from "posthog-js";
 import Button from "@/components/ui/Button";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
 
 export default function RoomShareActions({
     link,
@@ -18,6 +19,18 @@ export default function RoomShareActions({
         "/" + link,
         process.env.NEXT_PUBLIC_JOIN_LINK!,
     ).toString();
+
+    useEffect(() => {
+        if (!showQrCode) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (!matchesShortcut(event, "Enter")) return;
+            // Do not let Enter activate the QR trigger that may still have focus.
+            event.preventDefault();
+            setShowQrCode(false);
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [showQrCode]);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(roomUrl);
@@ -55,6 +68,11 @@ export default function RoomShareActions({
                 } z-1000 transition-all overlay duration-(--duration-etb) ease-etb`}
                 onClick={() => setShowQrCode(false)}
                 inert={!showQrCode}
+                role="dialog"
+                aria-modal="true"
+                aria-hidden={!showQrCode}
+                aria-label="ルームのQRコード"
+                aria-keyshortcuts="Enter"
             >
                 <div className="font-extrabold text-cyan-600 text-2xl">
                     Ei-TypeBomb
@@ -74,7 +92,7 @@ export default function RoomShareActions({
                         </div>
                     </div>
                 </div>
-                <div className="opacity-50">escまたはクリックで戻る。</div>
+                <div className="opacity-50">Returnまたはクリックで閉じる。</div>
             </div>
         </>
     );

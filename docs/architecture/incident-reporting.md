@@ -1,0 +1,9 @@
+# Server incident reporting
+
+PostHog Error Tracking receives personless, structured exceptions from the Next.js server logger and request-error hook, MCP OAuth/provider and unexpected token verification failures, Node server error logger/startup/cluster registration, and Worker scheduled registration/room maintenance/queued task failures. The MCP tool dispatcher already reports unexpected tool failures through its existing MCP SDK; expected protocol errors are not exceptions.
+
+Set NEXT_PUBLIC_POSTHOG_KEY (or NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) and the appropriate ingestion host on each runtime independently. For Workers, set the binding with Wrangler and set ETB_DEPLOYMENT_ENVIRONMENT to production or preview. Vercel variables require a redeployment. PostHog transmission is best-effort: each request times out after two seconds; failures never affect the original operation. The Pages OAuth API waits for incident delivery outside the database transaction, before releasing the buffered response; App Router logging uses after().
+
+Only fixed diagnostic labels, allowlisted error codes, safe call-site filenames/line numbers, and validated release metadata are sent. Raw error messages, stack strings, request contents, OAuth identifiers, credentials and user identifiers are excluded from the new exception path. Existing unrelated analytics/log streams are not changed. Configure alerts for new/reopened issues and deduplicate AI tasks by issue ID; do not auto-merge or grant write access to production systems. Error reporting cannot guarantee delivery on hard crashes, network outages or missing configuration. Use independent uptime monitoring for those cases.
+
+Validation: npm run test:mcp-oauth --prefix frontend; backend/server and backend/cloudflare typechecks, test suites, Node build and Worker dry-run as documented in AGENTS.md.

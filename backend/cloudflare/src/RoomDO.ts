@@ -1,3 +1,4 @@
+import { reportWorkerIncident } from "./lib/incidents";
 import { recoveryFailure } from "../../shared/distributed/recovery";
 import { DurableObject } from "cloudflare:workers";
 import {
@@ -159,6 +160,7 @@ export class RoomDO extends DurableObject<Env> {
                             // Do not discard a persisted deadline on transient
                             // peer unavailability; retry restoration later.
                             await this.ctx.storage.setAlarm(Date.now() + 1_000);
+                            this.ctx.waitUntil(reportWorkerIncident(this.env, "room_restore", error));
                             console.error("Worker room restore failed", {
                                 roomId,
                                 error:
@@ -174,6 +176,7 @@ export class RoomDO extends DurableObject<Env> {
                     try {
                         await this.distributed.tick();
                     } catch (error) {
+                        this.ctx.waitUntil(reportWorkerIncident(this.env, "room_maintenance", error));
                         console.error("Worker room maintenance failed", {
                             roomId: this.game?.room.id,
                             error:
@@ -261,6 +264,8 @@ export class RoomDO extends DurableObject<Env> {
     private enqueue(task: () => Promise<void>): Promise<void> {
         const next = this.queue.then(task);
         this.queue = next.catch((error) => {
+            if (!(error instanceof ClientError))
+                this.ctx.waitUntil(reportWorkerIncident(this.env, "room_task", error));
             console.error(
                 "Worker room task failed",
                 error instanceof Error ? error.name : "Unknown",

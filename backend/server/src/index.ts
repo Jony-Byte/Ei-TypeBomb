@@ -1,3 +1,4 @@
+import { reportNodeIncident } from "./lib/incidents";
 import express from "express";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
@@ -1071,9 +1072,10 @@ if (config) {
         if (!cluster) return;
         void cluster
             .register()
-            .catch((error) =>
-                console.error("Cluster registration failed", error.message),
-            );
+            .catch((error) => {
+                console.error("Cluster registration failed", error.message);
+                void reportNodeIncident("cluster_registration", error);
+            });
     }
     setInterval(awaitClusterStartup, 1_000).unref();
     setInterval(() => {
@@ -1118,7 +1120,8 @@ void clusterReady
             console.info(`Server topology: ${topology.role}`);
         }),
     )
-    .catch((error) => {
+    .catch(async (error) => {
         console.error(error.message);
         process.exitCode = 1;
+        await reportNodeIncident("startup", error);
     });

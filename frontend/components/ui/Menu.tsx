@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Icon, type IconName } from "./Icon";
 import Morph from "./Morph";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
 
 export type MenuItem = {
     label: string;
@@ -120,7 +121,7 @@ export default function Menu({ name, button, items }: MenuProps) {
             ) ?? menu
         )?.focus();
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
+            if (matchesShortcut(event, "Enter", true)) {
                 event.preventDefault();
                 setOpen(false);
             }
@@ -188,6 +189,7 @@ export default function Menu({ name, button, items }: MenuProps) {
             <button
                 type="button"
                 aria-label="メニューを閉じる"
+                aria-keyshortcuts="Shift+Enter"
                 tabIndex={-1}
                 aria-hidden="true"
                 onClick={() => setOpen(false)}

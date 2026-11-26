@@ -353,3 +353,42 @@ test("reduced motion keeps the same scrolling policy", async ({ page }) => {
     await expectCentered(page, 20);
     await expect(overlay(page)).toHaveCount(0);
 });
+
+
+test("Escape uses the Shell back control and Return dismisses the QR overlay", async ({ page }) => {
+    await openList(page);
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/latest$/);
+
+    await card(page, 0).locator(".room-card-link").click();
+    await finish(page, "/room-0", "morph");
+    const back = page.getByRole("link", { name: "戻る", exact: true });
+    await expect(back).toHaveAttribute("aria-keyshortcuts", "Escape");
+    const qrButton = page.getByRole("button", { name: "QRコード", exact: true });
+    const qrDialog = page.getByRole("dialog", { name: "ルームのQRコード" });
+    await qrButton.click();
+    await expect(qrDialog).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(qrDialog).toHaveCount(0);
+    await expect(page).toHaveURL(/\/room-0$/);
+
+    await page.evaluate(() => {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", repeat: true, bubbles: true, cancelable: true }));
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", isComposing: true, bubbles: true, cancelable: true }));
+    });
+    await expect(page).toHaveURL(/\/room-0$/);
+    await qrButton.click();
+    await page.keyboard.press("Escape");
+    await finish(page, "/latest", "morph");
+    await expectCentered(page, 0);
+});
+
+test("Escape triggers the editor's custom Shell back control", async ({ page }) => {
+    await openList(page);
+    await card(page, 20).getByRole("link", { name: "ルームを編集" }).click();
+    await finish(page, "/room-20/edit", "slide");
+    await expect(page.getByRole("button", { name: "Return from editor" })).toHaveAttribute("aria-keyshortcuts", "Escape");
+    await page.keyboard.press("Escape");
+    await finish(page, "/latest", "slide");
+    await expectCentered(page, 20);
+});

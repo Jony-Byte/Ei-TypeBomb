@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect } from "react";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
 
 type DialogProps = {
     open: boolean;
@@ -25,7 +26,8 @@ export default function Dialog({
         if (!open) return;
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
+            if (matchesShortcut(event, "Enter", true)) {
+                event.preventDefault();
                 onClose();
             }
         };
@@ -69,6 +71,7 @@ export default function Dialog({
                 <button
                     type="button"
                     aria-label="ダイアログを閉じる"
+                    aria-keyshortcuts="Shift+Enter"
                     onClick={onClose}
                     className={`absolute inset-0 cursor-default transition-all duration-(--duration-etb) ease-etb`}
                 />

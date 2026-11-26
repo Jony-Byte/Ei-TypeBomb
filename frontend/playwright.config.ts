@@ -11,7 +11,7 @@ export default defineConfig({
     command: "next dev test/browser/room-app --port 3102",
     url: "http://127.0.0.1:3102/room-0",
     timeout: 120_000,
-    env: { NEXT_TELEMETRY_DISABLED: "1" },
+    env: { NEXT_TELEMETRY_DISABLED: "1", NEXT_PUBLIC_JOIN_LINK: "http://127.0.0.1:3102" },
   }],
   projects: [
     { name: "chromium", use: { browserName: "chromium" } },

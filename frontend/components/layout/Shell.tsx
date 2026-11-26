@@ -1,10 +1,16 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import ProgressSignal from "./ProgressSignal";
 import { useRouter } from "next/navigation";
 import Button from "../ui/Button";
 import Header from "./Header";
+import { matchesShortcut } from "@/lib/keyboard-shortcuts";
+
+/** Register a custom back control with its containing Shell. */
+export function ShellBackButton(props: React.ComponentProps<typeof Button>) {
+    return <Button {...props} aria-keyshortcuts="Escape" />;
+}
 
 type ShellProps = {
     title?: string;
@@ -39,7 +45,31 @@ export default function Shell({
 }: ShellProps) {
     const router = useRouter();
     const morphRef = useRef<HTMLDivElement>(null);
+    const shellRef = useRef<HTMLDivElement>(null);
     const backHref = back ?? backLink;
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (!matchesShortcut(event, "Escape")) return;
+            const shell = shellRef.current;
+            if (!shell?.isConnected || shell.closest("[inert]")) return;
+            const control = Array.from(
+                shell.querySelectorAll<HTMLElement>('[aria-keyshortcuts="Escape"]'),
+            ).find((element) =>
+                element.closest("[data-shell-root]") === shell &&
+                !element.closest("[inert]") &&
+                !element.matches(':disabled, [aria-disabled="true"]') &&
+                element.getClientRects().length > 0,
+            );
+            if (!control) return;
+            event.preventDefault();
+            // Keep the real Button/Link navigation path, including morph, slide,
+            // history direction, scroll restoration and custom onClick callbacks.
+            control.click();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, []);
 
     if (loading) return <ProgressSignal />;
 
@@ -49,7 +79,7 @@ export default function Shell({
     return (
         <>
             {showHeader && <Header />}
-            <div className="flex flex-col items-center w-full" data-room-editor={roomEditor ? "" : undefined}>
+            <div ref={shellRef} data-shell-root className="flex flex-col items-center w-full" data-room-editor={roomEditor ? "" : undefined}>
                 <div
                     ref={morphRef}
                     data-room-detail={typeof morphTarget === "string" ? "" : undefined}
@@ -61,7 +91,7 @@ export default function Shell({
                         className={`relative mb-8 flex items-center ${(showBackButton || backHref) && "max-w-[calc(100vw-32px)]"} px-8`}
                     >
                         {(showBackButton || backHref) && (
-                            <Button
+                            <ShellBackButton
                                 variant="text"
                                 aria-label="戻る"
                                 iconName="arrowLeft"

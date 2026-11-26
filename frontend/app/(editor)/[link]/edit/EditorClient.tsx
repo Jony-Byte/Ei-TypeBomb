@@ -43,7 +43,7 @@ import {
     validateTitle,
 } from "@/lib/auth/validator";
 import posthog from "posthog-js";
-import Shell from "@/components/layout/Shell";
+import Shell, { ShellBackButton } from "@/components/layout/Shell";
 import { useEditorBack, useNavigation } from "@/components/layout/Navigation";
 import Dialog from "@/components/ui/Dialog";
 import { deleteRoom } from "@/lib/room/delete";
@@ -717,7 +717,7 @@ export default function EditorClient({
                 </div>
             )}
             <div className="flex mb-8 items-center w-full">
-                <Button
+                <ShellBackButton
                     variant="text"
                     iconName="arrowLeft"
                     padding="small"
